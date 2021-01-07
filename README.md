@@ -26,6 +26,8 @@ Gopenapi order to achieve the above goals, it follow the following concepts:
 ### Step 1: Write pure openapi file
 Gopenapi only support yaml format files so far
 
+https://editor.swagger.io/
+
 ```yaml
 swagger: "2.0"
 schemes:
