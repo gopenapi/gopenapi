@@ -11,21 +11,45 @@ type PetHandler struct {
 	u usecase.PetUseCase
 }
 
-// FindPet Is Api that do Finds Pets by status
+// FindPetByStatus Is Api that do Finds Pets by status
 //
 // Multiple status values can be provided with comma separated strings
-// goparams: query {...model.FindPetParams}
-// goresponse: json [model.Pet]
-// or goresponse: json [#/components/schemas/Pet]
-func (h *PetHandler) FindPet(ctx *gin.Context) {
-	var p model.FindPetParams
+//
+// $path
+//   params: {...model.FindPetByStatusParams, Status: {required: true}}
+//   resp: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}
+//
+func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
+	var p model.FindPetByStatusParams
 	err := ctx.ShouldBind(&p)
 	if err != nil {
 		ctx.JSON(400, err)
 		return
 	}
 
-	r, exist, err := h.u.FindPetByStatus(context.TODO(), &p)
+	r, err := h.u.FindPetByStatus(context.TODO(), &p)
+	if err != nil {
+		ctx.JSON(400, err)
+		return
+	}
+
+	ctx.JSON(200, r)
+}
+
+// $path
+//    params: {...model.GetPetById}
+//    resp: model.Pet
+//
+// $path.params: query {...model.FindPetByStatusParams}
+func (h *PetHandler) GetPet(ctx *gin.Context) {
+	var p model.GetPetById
+	err := ctx.ShouldBindUri(&p)
+	if err != nil {
+		ctx.JSON(400, err)
+		return
+	}
+
+	r, exist, err := h.u.GetPet(context.TODO(), &p)
 	if err != nil {
 		ctx.JSON(400, err)
 		return

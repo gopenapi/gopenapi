@@ -6,5 +6,6 @@ import (
 )
 
 type PetUseCase interface {
-	FindPetByStatus(ctx context.Context, p *model.FindPetParams) (r model.Pet, exist bool, err error)
+	FindPetByStatus(ctx context.Context, p *model.FindPetByStatusParams) (r []model.Pet, err error)
+	GetPet(ctx context.Context, p *model.GetPetById) (r model.Pet, exist bool, err error)
 }
