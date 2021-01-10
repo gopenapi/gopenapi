@@ -16,7 +16,7 @@ type PetHandler struct {
 // Multiple status values can be provided with comma separated strings
 //
 // $path
-//   params: {...model.FindPetByStatusParams, Status: {required: true}}
+//   params: {...model.FindPetByStatusParams, status: {required: true}}
 //   resp: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {

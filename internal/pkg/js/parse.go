@@ -1,0 +1,5 @@
+package js
+
+func A() {
+
+}
