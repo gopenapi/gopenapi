@@ -13,19 +13,29 @@ import (
 // - struct
 // - ...
 type Type struct {
-	Doc    *ast.CommentGroup
-	Fields []*StructField
+	Doc *ast.CommentGroup
+	//Fields []*StructField
 	// type 表示声明的是什么类型的东西
 	//   - struct: 结构体
 	//   - string: 字符串
-	Type ast.Expr `json:"-"`
-	Name string   `json:"name"`
+	Type ast.Expr          `json:"-"`
+	Name string            `json:"name"`
+	Tag  map[string]string `json:"tag"`
 }
 
-type StructField struct {
-	*Type
-	Tag map[string]string `json:"tag"`
+// 标识
+type Identer interface {
+	_typer()
 }
+
+type StructIdent struct {
+	Type   *ast.StructType
+	Name   string
+	Doc    *ast.CommentGroup
+	Fields []StructField
+}
+
+func (s *StructIdent) _typer() {}
 
 type GoParse struct {
 }
@@ -58,7 +68,7 @@ func (g *GoParse) GetDoc(key string) (doc string, exist bool, err error) {
 // 类型包括:
 //   通过 type xxx xxx 语法声明的类型
 // key的格式是: 路径/包名/元素, e.g.:  ../delivery/http/handler.PetHandler.FindPetByStatus
-func (g *GoParse) GetType(key string) (s *Type, exist bool, err error) {
+func (g *GoParse) GetSpec(key string) (s Specer, exist bool, err error) {
 	path, member := splitPkgPath(key)
 	kc, err := parseDirType(path)
 	if err != nil {
@@ -131,77 +141,43 @@ func parseDirDoc(path string) (kc map[string]*ast.CommentGroup, err error) {
 	return
 }
 
-func parseDirType(path string) (kc map[string]*Type, err error) {
-	// todo cache the path
-	fs := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fs, path, nil, parser.ParseComments|parser.AllErrors)
-	if err != nil {
-		return
-	}
+// 规则
+type Specer interface {
+	_specer()
+}
 
-	// 扫描
-	// - type 申明
-	// -
-	kc = map[string]*Type{}
-	for _, pkg := range pkgs {
-		for _, v := range pkg.Files {
-			for _, d := range v.Decls {
-				switch d := d.(type) {
-				case *ast.GenDecl:
-					genDeclDoc := d.Doc
-					spDoc := genDeclDoc
-					for _, sp := range d.Specs {
-						switch sp := sp.(type) {
-						// 类型申明
-						case *ast.TypeSpec:
-							if sp.Doc != nil {
-								spDoc = sp.Doc
-							}
+type FuncSpec struct {
+	Name string
+	Doc  *ast.CommentGroup
+}
 
-							//log.Printf("%#v %s", sp.Type, sp.Name.Name)
+type StructSpec struct {
+	Name   string
+	Doc    *ast.CommentGroup
+	Fields []StructField
+}
 
-							// 声明 struct
-							switch t := sp.Type.(type) {
-							case *ast.StructType:
-								var field []*StructField
-								for _, f := range t.Fields.List {
-									var tag map[string]string
-									if f.Tag != nil {
-										tag = encodeTag(f.Tag.Value)
-									}
+func (s *StructSpec) _specer() {}
 
-									field = append(field, &StructField{
-										Doc:  f.Doc,
-										Name: f.Names[0].Name,
-										Tag:  tag,
-										Type: f.Type,
-									})
-								}
+type TypeSpec struct {
+	Name string
+	Type Specer
+	Doc  *ast.CommentGroup
+}
 
-								kc[sp.Name.Name] = &Type{
-									Name:   sp.Name.Name,
-									Doc:    spDoc,
-									Fields: field,
-									Type:   sp.Type,
-								}
-							case *ast.Ident:
-								kc[sp.Name.Name] = &Type{
-									Doc:    spDoc,
-									Fields: nil,
-									Type:   t.Name,
-								}
-							default:
-								panic(fmt.Sprintf("uncased sp.Type :%T", t))
-							}
+// LetSpec 包括了 const 与 var
+type LetSpec struct {
+	Type Specer
+	Name string
+	Doc  *ast.CommentGroup
+}
 
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return
+// StructField 是 StructIdent 的 Fields
+type StructField struct {
+	Type Specer
+	Name string
+	Doc  *ast.CommentGroup
+	Tag  map[string]string
 }
 
 // 分割tag
