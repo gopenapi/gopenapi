@@ -7,7 +7,7 @@ import (
 )
 
 // RunJs 运行一个js表达式, 返回值
-func RunJs(js string, getter func(name string, scope string) interface{}) (interface{}, error) {
+func RunJs(js string, getter func(name string) interface{}) (interface{}, error) {
 	express, err := ParseExpress(js)
 	if err != nil {
 		return nil, err
@@ -15,23 +15,26 @@ func RunJs(js string, getter func(name string, scope string) interface{}) (inter
 
 	r := Runner{getter: getter}
 
-	return r.run(express, "")
+	return r.run(express)
 }
 
 type Runner struct {
 	// Getter 是当js运行时遇到变量时调用的方法, 返回变量值
-	// wantType: slice([]interface) , object(map[string]interface)
-	getter func(name string, wantType string) interface{}
+	getter func(name string) interface{}
 }
 
-func (r *Runner) run(expression ast.Expression, wantType string) (interface{}, error) {
+func interface2ObjKey(i interface{}) string {
+	return fmt.Sprintf("%v", i)
+}
+
+func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 	switch e := expression.(type) {
 	case *ast.ArrayLiteral:
 		var list []interface{}
 		for _, v := range e.Value {
 			switch v := v.(type) {
 			case *ast.SpreadElement:
-				arg, err := r.run(v.Argument, "slice")
+				arg, err := r.run(v.Argument)
 				if err != nil {
 					return nil, err
 				}
@@ -40,7 +43,7 @@ func (r *Runner) run(expression ast.Expression, wantType string) (interface{}, e
 					list = append(list, a)
 				}
 			default:
-				i, err := r.run(v, "")
+				i, err := r.run(v)
 				if err != nil {
 					return nil, err
 				}
@@ -53,18 +56,18 @@ func (r *Runner) run(expression ast.Expression, wantType string) (interface{}, e
 		for _, p := range e.Value {
 			switch p := p.(type) {
 			case *ast.ObjectProperty:
-				key, err := r.run(p.Key, "")
+				key, err := r.run(p.Key)
 				if err != nil {
 					return nil, err
 				}
 
-				val, err := r.run(p.Value, "")
+				val, err := r.run(p.Value)
 				if err != nil {
 					return nil, err
 				}
-				obj[key.(string)] = val
+				obj[interface2ObjKey(key)] = val
 			case *ast.SpreadElement:
-				arg, err := r.run(p.Argument, "")
+				arg, err := r.run(p.Argument)
 				if err != nil {
 					return nil, err
 				}
@@ -82,14 +85,14 @@ func (r *Runner) run(expression ast.Expression, wantType string) (interface{}, e
 	case *ast.StringLiteral:
 		return e.Value.String(), nil
 	case *ast.Identifier:
-		return r.getter(e.Name.String(), wantType), nil
+		return r.getter(e.Name.String()), nil
 	case *ast.BinaryExpression:
 
-		left, err := r.run(e.Left, "")
+		left, err := r.run(e.Left)
 		if err != nil {
 			return nil, err
 		}
-		right, err := r.run(e.Right, "")
+		right, err := r.run(e.Right)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +103,25 @@ func (r *Runner) run(expression ast.Expression, wantType string) (interface{}, e
 		}
 	case *ast.DotExpression:
 		key := r.dotExpressionToString(e)
-		return r.getter(key, wantType), nil
+		return r.getter(key), nil
+	case *ast.CallExpression:
+		// 调用方法
+		funci, err := r.run(e.Callee)
+		if err != nil {
+			return nil, err
+		}
+
+		fun := funci.(func(arg ...interface{}) interface{})
+		args := make([]interface{}, len(e.ArgumentList))
+
+		for i, a := range e.ArgumentList {
+			arg, err := r.run(a)
+			if err != nil {
+				return nil, err
+			}
+			args[i] = arg
+		}
+		return fun(args...), nil
 	default:
 		panic(fmt.Sprintf("uncased expression Type :%T, %+v", e, e))
 	}

@@ -7,8 +7,38 @@ import (
 	"go/token"
 )
 
+// 存储所有类型
+//   TypeSpec: 类型申明
+//   Func: 方法声明
 type parseAll struct {
-	d map[string]ast.Spec
+	// 所有的定义
+	def map[string]*Def
+	// 所有的变量/常量
+	let map[string]*Let
+}
+
+func NewParseAll() *parseAll {
+	return &parseAll{
+		def: map[string]*Def{},
+		let: map[string]*Let{},
+	}
+}
+
+// 所有的定义
+//  方法
+//  类型
+type Def struct {
+	Name string
+	Type ast.Expr
+	Doc  *ast.CommentGroup
+}
+
+// 变量以及常量
+type Let struct {
+	Value interface{}
+	Type  ast.Expr
+	Name  string
+	Doc   *ast.CommentGroup
 }
 
 func (p *parseAll) parse(path string) (err error) {
@@ -34,15 +64,43 @@ func (p *parseAll) parse(path string) (err error) {
 								spec.Doc = genDeclDoc
 							}
 
-							p.d[spec.Name.Name] = spec
+							p.def[spec.Name.Name] = &Def{
+								Name: spec.Name.Name,
+								Type: spec.Type,
+								Doc:  spec.Doc,
+							}
+						case *ast.ValueSpec:
+							for i, name := range spec.Names {
+								p.let[name.Name] = &Let{
+									Value: expr2Interface(spec.Values[i]),
+									Type:  spec.Type,
+									Name:  name.Name,
+									Doc:   spec.Doc,
+								}
+							}
 						default:
-							panic(fmt.Sprintf("uncased %T", spec))
+							panic(fmt.Sprintf("uncased spec type %T", spec))
 						}
 					}
+				case *ast.FuncDecl:
+					p.def[decl.Name.Name] = &Def{
+						Name: decl.Name.Name,
+						Type: decl.Type,
+						Doc:  decl.Doc,
+					}
+				default:
+					panic(fmt.Sprintf("uncased decl type %T", decl))
 				}
 			}
 		}
 	}
 
 	return
+}
+
+// 将表达转为基础的类型
+// 只支持 string / int / float 类型
+func expr2Interface(expr ast.Expr) interface{} {
+	// TODO expr2Interface
+	return expr
 }

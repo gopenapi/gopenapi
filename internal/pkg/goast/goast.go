@@ -5,37 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"strings"
 )
 
-// Type 是go所有类型的数据
-// 包括了
-// - struct
-// - ...
-type Type struct {
-	Doc *ast.CommentGroup
-	//Fields []*StructField
-	// type 表示声明的是什么类型的东西
-	//   - struct: 结构体
-	//   - string: 字符串
-	Type ast.Expr          `json:"-"`
-	Name string            `json:"name"`
-	Tag  map[string]string `json:"tag"`
-}
-
-// 标识
-type Identer interface {
-	_typer()
-}
-
-type StructIdent struct {
-	Type   *ast.StructType
-	Name   string
-	Doc    *ast.CommentGroup
-	Fields []StructField
-}
-
-func (s *StructIdent) _typer() {}
 
 type GoParse struct {
 }
@@ -64,20 +35,20 @@ func (g *GoParse) GetDoc(key string) (doc string, exist bool, err error) {
 	return
 }
 
-// GetType 获取目标类型的源信息
-// 类型包括:
-//   通过 type xxx xxx 语法声明的类型
-// key的格式是: 路径/包名/元素, e.g.:  ../delivery/http/handler.PetHandler.FindPetByStatus
-func (g *GoParse) GetSpec(key string) (s Specer, exist bool, err error) {
+// GetStruct 获取struct结构
+// key的格式是: 路径/包名/元素, e.g.:  ../delivery/http/handler.PetHandler
+func (g *GoParse) GetStruct(key string) (def *Def, exist bool, err error) {
 	path, member := splitPkgPath(key)
-	kc, err := parseDirType(path)
+
+	pa := NewParseAll()
+	err = pa.parse(path)
 	if err != nil {
-		return
+		return nil, false, err
 	}
 
-	comment, ok := kc[member]
-	if ok {
-		return comment, true, nil
+	def, exist = pa.def[member]
+	if !exist {
+		return
 	}
 
 	return
@@ -139,57 +110,4 @@ func parseDirDoc(path string) (kc map[string]*ast.CommentGroup, err error) {
 	}
 
 	return
-}
-
-// 规则
-type Specer interface {
-	_specer()
-}
-
-type FuncSpec struct {
-	Name string
-	Doc  *ast.CommentGroup
-}
-
-type StructSpec struct {
-	Name   string
-	Doc    *ast.CommentGroup
-	Fields []StructField
-}
-
-func (s *StructSpec) _specer() {}
-
-type TypeSpec struct {
-	Name string
-	Type Specer
-	Doc  *ast.CommentGroup
-}
-
-// LetSpec 包括了 const 与 var
-type LetSpec struct {
-	Type Specer
-	Name string
-	Doc  *ast.CommentGroup
-}
-
-// StructField 是 StructIdent 的 Fields
-type StructField struct {
-	Type Specer
-	Name string
-	Doc  *ast.CommentGroup
-	Tag  map[string]string
-}
-
-// 分割tag
-func encodeTag(tag string) map[string]string {
-	tag = strings.Trim(tag, "`")
-	r := map[string]string{}
-
-	for _, t := range strings.Split(tag, " ") {
-		ss := strings.Split(t, ":")
-		if len(ss) == 2 {
-			r[ss[0]] = strings.Trim(ss[1], `"`)
-		}
-	}
-	return r
 }

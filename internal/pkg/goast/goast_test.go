@@ -1,7 +1,6 @@
 package goast
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -15,12 +14,12 @@ func TestGoParse(t *testing.T) {
 	t.Logf("%s %t", doc, exist)
 }
 
-func TestParseStruct(t *testing.T) {
-	kc, err := parseDirType("../../model")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	bs, _ := json.MarshalIndent(kc, " ", " ")
-	t.Logf("%s", bs)
-}
+//func TestParseStruct(t *testing.T) {
+//	kc, err := parseDirType("../../model")
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	bs, _ := json.MarshalIndent(kc, " ", " ")
+//	t.Logf("%s", bs)
+//}

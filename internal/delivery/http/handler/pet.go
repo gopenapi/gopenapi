@@ -32,9 +32,9 @@ type (
 //
 // Multiple status values can be provided with comma separated strings
 //
-// $path
-//   params: "js: [...model.FindPetByStatusParams, {name: status, required: true}]"
-//   resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
+// $:
+//   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
+//   js-resp: '{200: {desc: "成功", content: schema([model.Pet]}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	var p model.FindPetByStatusParams
