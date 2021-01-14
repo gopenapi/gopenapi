@@ -20,27 +20,27 @@ import (
 //    responses: 解析成 schema
 func runJsExpress(code string, filename string, ctx map[string]struct{}) (interface{}, error) {
 	//return nil,nil
-	v, err := js.RunJs(code, func(name string, want string) interface{} {
+	v, err := js.RunJs(code, func(name string) (interface{}, error) {
 		if name == "params" {
-			return func(args ...interface{}) interface{} {
+			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
 				switch s := stru.(type) {
 				case nil:
-					return nil
+					return nil, nil
 				case ast.Expr:
 					// case for:
 					//   params(model.FindPetByStatusParams)
-					return struct2ParamsList(s)
+					return struct2ParamsList(s), nil
 				}
 				// 如果不是go的结构, 则原样返回
 				//   params([{name: 'status'}])
-				return stru
-			}
+				return stru, nil
+			}, nil
 		} else if name == "schema" {
-			return func(args ...interface{}) interface{} {
+			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
-				return anyToSchema(stru)
-			}
+				return anyToSchema(stru), nil
+			}, nil
 		}
 
 		//res := func(i interface{}) interface{} {
@@ -74,13 +74,13 @@ func runJsExpress(code string, filename string, ctx map[string]struct{}) (interf
 		goStruct, exist, err := gp.GetStruct("../../" + name)
 		if err != nil {
 			log.Printf("[err] %v", err)
-			return nil
+			return nil, nil
 		}
 		if !exist {
-			return nil
+			return nil, nil
 		}
 
-		return goStruct.Type
+		return goStruct.Type, nil
 	})
 	if err != nil {
 		return nil, err
@@ -95,14 +95,17 @@ func struct2ParamsList(s ast.Expr) []interface{} {
 	switch s := s.(type) {
 	case *ast.StructType:
 		for _, f := range s.Fields.List {
+			gd, err := ParseGoDoc(f.Doc.Text())
+			if err != nil {
+				fmt.Printf("[err] %v", err)
+				return nil
+			}
 			l = append(l, ParamsItem{
 				From: "go",
 				Name: f.Names[0].Name,
 				Tag:  encodeTag(f.Tag),
-				Doc:  f.Doc.Text(),
-				// TODO decode meta
-				Meta: map[string]interface{}{},
-				//Schema: nil,
+				Doc:  gd.Doc,
+				Meta: gd.Meta,
 				Schema: anyToSchema(f.Type),
 			})
 		}
@@ -135,6 +138,12 @@ func anyToSchema(i interface{}) Schema {
 			if x, ok := p.(interface{ Format() string }); ok {
 				format = x.Format()
 			}
+
+			gd, err := ParseGoDoc(f.Doc.Text())
+			if err != nil {
+				fmt.Printf("[err] %v", err)
+				return nil
+			}
 			props = append(props, Item{
 				Key: f.Names[0].Name,
 				Val: ObjectProp{
@@ -142,9 +151,9 @@ func anyToSchema(i interface{}) Schema {
 					Ref:         "",
 					Type:        p.GetType(),
 					Format:      format,
-					Meta:        nil,
+					Meta:        gd.Meta,
 					Tag:         encodeTag(f.Tag),
-					Description: f.Doc.Text(),
+					Description: gd.Doc,
 				},
 			})
 		}
@@ -296,9 +305,12 @@ func full(i []yaml.MapItem, filename string, key map[string]struct{}) []yaml.Map
 				Key:   item.Key,
 				Value: v,
 			})
+		case int, int64, int32, uint, uint32, float32, float64, bool:
+			r = append(r, item)
+		case nil:
+			r = append(r, item)
 		default:
 			panic(fmt.Sprintf("uncased Value type %T", v))
-
 		}
 
 		delete(key, s)
@@ -317,12 +329,12 @@ type XData struct {
 // 从go结构体能读出的数据, 用于parameters
 type ParamsItem struct {
 	// From 表示此item来至那, 如 go
-	From   string                 `json:"_from"`
-	Name   string                 `json:"name"`
-	Tag    map[string]string      `json:"tag"`
-	Doc    string                 `json:"doc"`
-	Meta   map[string]interface{} `json:"meta,omitempty"`
-	Schema Schema                 `json:"schema"`
+	From   string            `json:"_from"`
+	Name   string            `json:"name"`
+	Tag    map[string]string `json:"tag"`
+	Doc    string            `json:"doc"`
+	Meta   JsonItems         `json:"meta,omitempty"`
+	Schema Schema            `json:"schema"`
 }
 
 func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {
@@ -339,18 +351,24 @@ func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {
 		Value: name,
 	})
 
-	r = append(r, yaml.MapItem{
-		Key:   "in",
-		Value: t.Meta["in"],
-	})
+	in, exist := t.Meta.Get("in")
+	if exist {
+		r = append(r, yaml.MapItem{
+			Key:   "in",
+			Value: in,
+		})
+	}
 	r = append(r, yaml.MapItem{
 		Key:   "description",
 		Value: t.Doc,
 	})
-	r = append(r, yaml.MapItem{
-		Key:   "required",
-		Value: t.Meta["required"],
-	})
+	required, exist := t.Meta.Get("required")
+	if exist {
+		r = append(r, yaml.MapItem{
+			Key:   "required",
+			Value: required,
+		})
+	}
 	//r = append(r, yaml.MapItem{
 	//	Key:   "style",
 	//	Value: t.style,
@@ -418,6 +436,16 @@ func (j JsonItems) MarshalJSON() ([]byte, error) {
 	return bs, err
 }
 
+func (j JsonItems) Get(key string) (v interface{}, exist bool) {
+	for _, item := range j {
+		if item.Key == key {
+			return item.Val, true
+		}
+	}
+
+	return nil, false
+}
+
 type ObjectSchema struct {
 	Ref string `json:"$ref,omitempty"`
 
@@ -434,13 +462,13 @@ func (a *ObjectSchema) GetType() string {
 
 type ObjectProp struct {
 	// ref 是自动获取到的ref, 就算ref存在下方的其他字段也会存在, 所以你可以选择是否使用ref.
-	Ref         string                 `json:"$ref,omitempty"`
-	Type        string                 `json:"type"`
-	Format      string                 `json:"format"`
-	Meta        map[string]interface{} `json:"meta,omitempty"`
-	Description string                 `json:"description"`
-	Tag         map[string]string      `json:"tag,omitempty"`
-	Example     interface{}            `json:"example,omitempty"`
+	Ref         string            `json:"$ref,omitempty"`
+	Type        string            `json:"type"`
+	Format      string            `json:"format"`
+	Meta        JsonItems         `json:"meta,omitempty"`
+	Description string            `json:"description"`
+	Tag         map[string]string `json:"tag,omitempty"`
+	Example     interface{}       `json:"example,omitempty"`
 }
 
 // 基础类型, string / int
@@ -523,7 +551,7 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 	return r
 }
 
-// 完成openapi
+// 完成openapi, 入口
 func CompleteOpenapi(inYaml string) (dest string, err error) {
 	// 读取openapi
 	var kv []yaml.MapItem

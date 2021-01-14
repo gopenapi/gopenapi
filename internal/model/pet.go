@@ -8,6 +8,7 @@ type Pet struct {
 	// Id is Pet name
 	Name     string    `json:"name"`
 	// Tag is Pet Tag
+	// $a: 1
 	Tags     []Tag     `json:"tags"`
 	Status   PetStatus `json:"status"`
 }

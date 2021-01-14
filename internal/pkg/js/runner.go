@@ -7,7 +7,7 @@ import (
 )
 
 // RunJs 运行一个js表达式, 返回值
-func RunJs(js string, getter func(name string) interface{}) (interface{}, error) {
+func RunJs(js string, getter func(name string) (interface{}, error)) (interface{}, error) {
 	express, err := ParseExpress(js)
 	if err != nil {
 		return nil, err
@@ -20,7 +20,7 @@ func RunJs(js string, getter func(name string) interface{}) (interface{}, error)
 
 type Runner struct {
 	// Getter 是当js运行时遇到变量时调用的方法, 返回变量值
-	getter func(name string) interface{}
+	getter func(name string) (interface{}, error)
 }
 
 func interface2ObjKey(i interface{}) string {
@@ -85,7 +85,7 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 	case *ast.StringLiteral:
 		return e.Value.String(), nil
 	case *ast.Identifier:
-		return r.getter(e.Name.String()), nil
+		return r.getter(e.Name.String())
 	case *ast.BinaryExpression:
 
 		left, err := r.run(e.Left)
@@ -103,7 +103,7 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 		}
 	case *ast.DotExpression:
 		key := r.dotExpressionToString(e)
-		return r.getter(key), nil
+		return r.getter(key)
 	case *ast.CallExpression:
 		// 调用方法
 		funci, err := r.run(e.Callee)
@@ -111,7 +111,7 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 			return nil, err
 		}
 
-		fun := funci.(func(arg ...interface{}) interface{})
+		fun := funci.(func(arg ...interface{}) (interface{}, error))
 		args := make([]interface{}, len(e.ArgumentList))
 
 		for i, a := range e.ArgumentList {
@@ -121,7 +121,7 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 			}
 			args[i] = arg
 		}
-		return fun(args...), nil
+		return fun(args...)
 	default:
 		panic(fmt.Sprintf("uncased expression Type :%T, %+v", e, e))
 	}
