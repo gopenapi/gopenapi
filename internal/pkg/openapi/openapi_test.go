@@ -3,58 +3,11 @@ package openapi
 import (
 	"encoding/json"
 	"github.com/dop251/goja"
-	"go/ast"
-	"go/parser"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"testing"
 )
-
-type Common struct {
-	// Doc is Go comment without meta.
-	Doc string
-	// e.g.
-	// $path
-	//   params: {a: 1}
-	Meta map[string]interface{}
-}
-
-func Meta() {
-
-}
-
-// 测试 扩展openapi语法
-func TestY(t *testing.T) {
-	var i []yaml.MapItem
-	err := yaml.Unmarshal([]byte(`
-$path:
-  tags: [pet]
-  params: | 
-    js: [...model.FindPetByStatusParams, {name: status, required: true}]
-  resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
-
-`),
-		&i)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// 将go:语法转换为一个完整的json
-	var r = full(i, "pet.go", map[string]struct{}{})
-
-	bs, err := yaml.Marshal(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("%s", bs)
-
-}
-
-type OpenApi struct {
-	paramsUseTag string
-}
 
 func TestXPathToOpenapi(t *testing.T) {
 	x := XData{
@@ -90,29 +43,17 @@ func TestXPathToOpenapi(t *testing.T) {
 }
 
 func TestRunJsExpress(t *testing.T) {
-	v, err := runJsExpress("[...model.FindPetByStatusParams, {name: 'status', required: true}]", "",
-		map[string]struct{}{"parameters": {}})
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := openAPi.runJsExpress("[...params(model.FindPetByStatusParams), {name: 'status', required: true}]",
+		"github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	bs, _ := json.MarshalIndent(v, " ", " ")
-	t.Logf("%s", bs)
-}
-
-func TestType2Schema(t *testing.T) {
-	e, err := parser.ParseExpr("x == struct{a int}{}")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("%#v", e.(*ast.BinaryExpr).Y.(*ast.CompositeLit).Type)
-	s := anyToSchema(e.(*ast.BinaryExpr).Y.(*ast.CompositeLit).Type)
-
-	bs, err := json.MarshalIndent(s, "  ", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Logf("%s", bs)
 }
 
@@ -150,8 +91,11 @@ $path:
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	x := fullCommentMeta(kv, "", map[string]struct{}{})
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := openAPi.fullCommentMetaToJson(kv, "")
 	bs, err := json.Marshal(x)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +146,7 @@ var config = {
 }
 `
 
-	val := "var c = " + `{"$path":{"params":[{"_from":"go","name":"Status","tag":{"form":"status"},"doc":"Status values that need to be considered for filter\n$required: true\n","schema":{"type":"array","items":{"type":"PetStatus"}}},{"name":"status","required":true}],"resp":{"200":{"content":{"type":"array","items":{"type":"object","properties":{"Id":{"type":"int64","format":"int64","description":"Id is Pet ID\n","tag":{"json":"id"}},"Category":{"type":"Category","format":"Category","description":"Category Is pet category\n","tag":{"json":"category"}},"Name":{"type":"string","format":"string","description":"Id is Pet name\n","tag":{"json":"name"}},"Tags":{"type":"array","format":"","description":"Tag is Pet Tag\n","tag":{"json":"tags"}},"Status":{"type":"PetStatus","format":"PetStatus","description":"","tag":{"json":"status"}}}}},"desc":"成功"},"401":{"content":{"type":"object","properties":{"msg":{"type":"string","format":"string","description":"","example":"没权限"}}},"desc":"没权限"}}}}`
+	val := "var c = " + `{"$path":{"params":[{"_from":"go","name":"Status","tag":{"form":"status"},"doc":"Status values that need to be considered for filter\n$required: true\n","schema":{"type":"array","items":{"type":"PetStatus"}}},{"name":"status","required":true}],"resp":{"200":{"content":{"type":"array","items":{"type":"object","properties":{"Id":{"type":"int64","format":"int64","description":"Id is Pet ID\n","tag":{"json":"id"}},"Category":{"type":"Category","format":"Category","description":"Category Is pet category\n","tag":{"json":"category"}},"PkgName":{"type":"string","format":"string","description":"Id is Pet name\n","tag":{"json":"name"}},"Tags":{"type":"array","format":"","description":"Tag is Pet Tag\n","tag":{"json":"tags"}},"Status":{"type":"PetStatus","format":"PetStatus","description":"","tag":{"json":"status"}}}}},"desc":"成功"},"401":{"content":{"type":"object","properties":{"msg":{"type":"string","format":"string","description":"","example":"没权限"}}},"desc":"没权限"}}}}`
 	jsCode := val + ";" + config + ";config.filter('$path', c)"
 
 	gj := goja.New()

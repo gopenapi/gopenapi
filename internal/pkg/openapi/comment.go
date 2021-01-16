@@ -15,7 +15,16 @@ type GoDoc struct {
 	Meta JsonItems
 }
 
-func ParseGoDoc(doc string) (*GoDoc, error) {
+// parseGoDoc 将注释转为 纯注释文本 和 支持json序列化的Meta.
+// 支持的注释格式如下:
+//
+// Multiple status values can be provided with comma separated strings
+//
+// $:
+//   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
+//   js-resp: '{200: {desc: "成功", content: schema([model.Pet]}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
+//
+func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoDoc, error) {
 	// 逐行扫描
 	lines := strings.Split(doc, "\n")
 	startIndent := 0
@@ -53,9 +62,9 @@ func ParseGoDoc(doc string) (*GoDoc, error) {
 	}
 
 	// 处理yaml变量
-	var yamlObj []JsonItems
+	var yamlObj [][]yaml.MapItem
 	for _, y := range yamlPart {
-		r, err := parseYaml(y)
+		r, err := o.parseYaml(y, filepath)
 		if err != nil {
 			return nil, err
 		}
@@ -65,12 +74,12 @@ func ParseGoDoc(doc string) (*GoDoc, error) {
 
 	return &GoDoc{
 		Doc:  strings.TrimSpace(pureDoc.String()),
-		Meta: combinObj(yamlObj...),
+		Meta: yamlItemToJsonItem(combinObj(yamlObj...)),
 	}, nil
 }
 
 // 组合多个yaml对象
-func combinObj(o ...JsonItems) JsonItems {
+func combinObj(o ...[]yaml.MapItem) []yaml.MapItem {
 	// 判断重复, 重复直接覆盖.
 	//keyMap := map[string]int{}
 	//
@@ -87,21 +96,20 @@ func combinObj(o ...JsonItems) JsonItems {
 	//	}
 	//}
 
-	var r JsonItems
+	var r []yaml.MapItem
 	for _, item := range o {
 		r = append(r, item...)
 	}
 	return r
 }
 
-func parseYaml(y string) (JsonItems, error) {
+func (o *OpenApi) parseYaml(y string, filepath string) ([]yaml.MapItem, error) {
 	var i []yaml.MapItem
 	err := yaml.Unmarshal([]byte(y),
 		&i)
 	if err != nil {
 		return nil, err
 	}
-
 
 	var allObj []yaml.MapItem
 	// 删除 $符号
@@ -120,9 +128,9 @@ func parseYaml(y string) (JsonItems, error) {
 	}
 
 	// 将go:语法转换为一个完整的json
-	var fulled = full(allObj, "pet.go", map[string]struct{}{})
+	var fulled = o.fullCommentMeta(allObj, filepath)
 
-	return yamlItemToJsonItem(fulled), nil
+	return fulled, nil
 }
 
 // match for

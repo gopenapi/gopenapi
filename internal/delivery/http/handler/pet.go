@@ -5,7 +5,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zbysir/gopenapi/internal/model"
 	"github.com/zbysir/gopenapi/internal/usecase"
+	ua "github.com/zbysir/gopenapi/internal/usecase"
 )
+
+var x ua.PetUseCase
 
 // a 111
 var (

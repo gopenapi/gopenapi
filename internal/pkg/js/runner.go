@@ -1,9 +1,11 @@
 package js
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/zbysir/goja-parser/ast"
 	"github.com/zbysir/goja-parser/token"
+	"strconv"
 )
 
 // RunJs 运行一个js表达式, 返回值
@@ -21,10 +23,16 @@ func RunJs(js string, getter func(name string) (interface{}, error)) (interface{
 type Runner struct {
 	// Getter 是当js运行时遇到变量时调用的方法, 返回变量值
 	getter func(name string) (interface{}, error)
+	// strict 表示是否是严格模式, 严格模式下, 遇到的错都会被return, 非严格模式下, Runner会尽量的返回nil, 而不报错.
+	strict bool
 }
 
 func interface2ObjKey(i interface{}) string {
 	return fmt.Sprintf("%v", i)
+}
+
+type MemberGetter interface {
+	GetMember(k string) interface{}
 }
 
 func (r *Runner) run(expression ast.Expression) (interface{}, error) {
@@ -38,8 +46,17 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 				if err != nil {
 					return nil, err
 				}
+				array, ok := arg.([]interface{})
+				if !ok {
+					err := fmt.Errorf("spread opeart only support on []interface, but: %T", arg)
+					if r.strict {
+						return nil, err
+					}
+					fmt.Printf("[err] %v\n", err)
+					return nil, nil
+				}
 
-				for _, a := range arg.([]interface{}) {
+				for _, a := range array {
 					list = append(list, a)
 				}
 			default:
@@ -99,11 +116,23 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 
 		switch e.Operator {
 		case token.PLUS:
-			return add(left, right), nil
+			return interfaceAdd(left, right), nil
 		}
 	case *ast.DotExpression:
-		key := r.dotExpressionToString(e)
-		return r.getter(key)
+		left, err := r.run(e.Left)
+		if err != nil {
+			return nil, err
+		}
+		id := e.Identifier.Name.String()
+		switch left := left.(type) {
+		case map[string]interface{}:
+			return left[id], nil
+		case MemberGetter:
+			return left.GetMember(id), nil
+		default:
+			return nil, nil
+		}
+
 	case *ast.CallExpression:
 		// 调用方法
 		funci, err := r.run(e.Callee)
@@ -138,21 +167,55 @@ func (r *Runner) dotExpressionToString(de *ast.DotExpression) string {
 	}
 	return key
 }
-
-func add(a, b interface{}) interface{} {
-	switch a := a.(type) {
-	case float64:
-		switch b := b.(type) {
-		case float64:
-			return a + b
-		}
-	case int64:
-		switch b := b.(type) {
-		case int64:
-			return a + b
-		}
-
+func interfaceAdd(a, b interface{}) interface{} {
+	an, ok := isNumber(a)
+	if !ok {
+		return interfaceToStr(a) + interfaceToStr(b)
+	}
+	bn, ok := isNumber(b)
+	if !ok {
+		return interfaceToStr(a) + interfaceToStr(b)
 	}
 
-	return fmt.Sprintf("%v%v", a, b)
+	return an + bn
+}
+
+func isNumber(s interface{}) (d float64, is bool) {
+	if s == nil {
+		return 0, false
+	}
+	switch a := s.(type) {
+	case int:
+		return float64(a), true
+	case int32:
+		return float64(a), true
+	case int64:
+		return float64(a), true
+	case float64:
+		return a, true
+	case float32:
+		return float64(a), true
+	default:
+		return 0, false
+	}
+}
+
+func interfaceToStr(s interface{}) (d string) {
+	switch a := s.(type) {
+	case string:
+		d = a
+	case int:
+		d = strconv.FormatInt(int64(a), 10)
+	case int32:
+		d = strconv.FormatInt(int64(a), 10)
+	case int64:
+		d = strconv.FormatInt(a, 10)
+	case float64:
+		d = strconv.FormatFloat(a, 'f', -1, 64)
+	default:
+		bs, _ := json.Marshal(a)
+		d = string(bs)
+	}
+
+	return
 }

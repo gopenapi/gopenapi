@@ -5,22 +5,57 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/zbysir/gopenapi/internal/pkg/goast"
+	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"github.com/zbysir/gopenapi/internal/pkg/js"
 	"go/ast"
 	"gopkg.in/yaml.v2"
-	"log"
 	"sort"
 	"strings"
 )
 
-// 扩展openapi语法, 让其支持从go文件中读取注释信息
+type OpenApi struct {
+	goparse *goast.GoParse
+}
 
-// ctx: 根据用户写的key, 只能匹配将结构体解析成什么格式
-// 如 key中包含了parameters, 则将 struct解析成为 paramsList.
-//    responses: 解析成 schema
-func runJsExpress(code string, filename string, ctx map[string]struct{}) (interface{}, error) {
+func NewOpenApi(gomodFile string) (*OpenApi, error) {
+	goSrc, err := gosrc.NewGoSrcFromModFile(gomodFile)
+	if err != nil {
+		return nil, err
+	}
+	p := goast.NewGoParse(goSrc)
+	return &OpenApi{goparse: p}, nil
+}
+
+// PkgGetter 实现了 GetMember 接口, 用来给js解析器执行 member 语法.
+type PkgGetter struct {
+	goparse *goast.GoParse
+	pkg     *goast.Pkg
+}
+
+func (p *PkgGetter) GetMember(k string) interface{} {
+	def, exist, err := p.goparse.GetStruct(p.pkg.Dir, k)
+	if err != nil {
+		fmt.Printf("[err] %v", err)
+		return nil
+	}
+	if !exist {
+		return nil
+	}
+	return def.Type
+}
+
+// 扩展openapi语法, 让其支持从go文件中读取注释信息
+// params:
+//  code: js表达式
+//  filepath: 当前go文件的路径, 会根据当前文件引入的包识别js表达式使用的是哪个包.
+// return:
+//  可能是任何东西
+func (o *OpenApi) runJsExpress(code string, filePath string) (interface{}, error) {
 	//return nil,nil
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
+		// builtin func:
+		// - params
+		// - schema
 		if name == "params" {
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
@@ -28,9 +63,9 @@ func runJsExpress(code string, filename string, ctx map[string]struct{}) (interf
 				case nil:
 					return nil, nil
 				case ast.Expr:
-					// case for:
+					// case for follow syntax:
 					//   params(model.FindPetByStatusParams)
-					return struct2ParamsList(s), nil
+					return o.struct2ParamsList(s, filePath), nil
 				}
 				// 如果不是go的结构, 则原样返回
 				//   params([{name: 'status'}])
@@ -39,48 +74,26 @@ func runJsExpress(code string, filename string, ctx map[string]struct{}) (interf
 		} else if name == "schema" {
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
-				return anyToSchema(stru), nil
+				return o.anyToSchema(stru, filePath), nil
 			}, nil
 		}
 
-		//res := func(i interface{}) interface{} {
-		//	if _, ok := ctx["parameters"]; ok {
-		//		switch i := i.(type) {
-		//		case nil:
-		//			return []interface{}{}
-		//		case ast.Expr:
-		//			// 从go解析出的结构
-		//			//return []interface{}{}
-		//			return struct2ParamsList(i)
-		//		default:
-		//			panic(fmt.Sprintf("uncase Type of parameters: %T", i))
-		//		}
-		//
-		//		return i
-		//	}
-		//
-		//	switch i := i.(type) {
-		//	case ast.Expr:
-		//		return type2Schema(i)
-		//	default:
-		//		return i
-		//	}
-		//}
-
-		gp := goast.NewGoParse()
-
-		// todo 根据 filename 获取import的pkg和别名
-
-		goStruct, exist, err := gp.GetStruct("../../" + name)
+		// 获取当前文件所有引入的包
+		pkgs, err := o.goparse.GetFileImportPkg(filePath)
 		if err != nil {
-			log.Printf("[err] %v", err)
-			return nil, nil
-		}
-		if !exist {
-			return nil, nil
+			return nil, err
 		}
 
-		return goStruct.Type, nil
+		// 判断name是否是pkg别名
+		if pkg, ispkg := pkgs[name]; ispkg {
+			// 如果是pkg, 则进入解析go源码流程
+			return &PkgGetter{
+				goparse: o.goparse,
+				pkg:     pkg,
+			}, nil
+		}
+
+		return nil, nil
 	})
 	if err != nil {
 		return nil, err
@@ -90,23 +103,23 @@ func runJsExpress(code string, filename string, ctx map[string]struct{}) (interf
 
 // 将struct解析成 openapi.parameters
 // 返回的是[]ParamsItem.
-func struct2ParamsList(s ast.Expr) []interface{} {
+func (o *OpenApi) struct2ParamsList(s ast.Expr, filePath string) []interface{} {
 	var l []interface{}
 	switch s := s.(type) {
 	case *ast.StructType:
 		for _, f := range s.Fields.List {
-			gd, err := ParseGoDoc(f.Doc.Text())
+			gd, err := o.parseGoDoc(f.Doc.Text(), filePath)
 			if err != nil {
 				fmt.Printf("[err] %v", err)
 				return nil
 			}
 			l = append(l, ParamsItem{
-				From: "go",
-				Name: f.Names[0].Name,
-				Tag:  encodeTag(f.Tag),
-				Doc:  gd.Doc,
-				Meta: gd.Meta,
-				Schema: anyToSchema(f.Type),
+				From:   "go",
+				Name:   f.Names[0].Name,
+				Tag:    encodeTag(f.Tag),
+				Doc:    gd.Doc,
+				Meta:   gd.Meta,
+				Schema: o.anyToSchema(f.Type, filePath),
 			})
 		}
 	default:
@@ -117,12 +130,12 @@ func struct2ParamsList(s ast.Expr) []interface{} {
 }
 
 // 把任何格式的数据都转成Schema
-func anyToSchema(i interface{}) Schema {
+func (o *OpenApi) anyToSchema(i interface{}, filePath string) Schema {
 	switch s := i.(type) {
 	case *ast.ArrayType:
 		return &ArraySchema{
 			Type:  "array",
-			Items: anyToSchema(s.Elt),
+			Items: o.anyToSchema(s.Elt, filePath),
 		}
 	case *ast.Ident:
 		return &IdentSchema{
@@ -133,13 +146,13 @@ func anyToSchema(i interface{}) Schema {
 	case *ast.StructType:
 		var props JsonItems
 		for _, f := range s.Fields.List {
-			p := anyToSchema(f.Type)
+			p := o.anyToSchema(f.Type, filePath)
 			format := ""
 			if x, ok := p.(interface{ Format() string }); ok {
 				format = x.Format()
 			}
 
-			gd, err := ParseGoDoc(f.Doc.Text())
+			gd, err := o.parseGoDoc(f.Doc.Text(), filePath)
 			if err != nil {
 				fmt.Printf("[err] %v", err)
 				return nil
@@ -166,12 +179,12 @@ func anyToSchema(i interface{}) Schema {
 		if len(s) == 0 {
 			return &ArraySchema{
 				Type:  "array",
-				Items: anyToSchema(nil),
+				Items: o.anyToSchema(nil, filePath),
 			}
 		}
 		return &ArraySchema{
 			Type:  "array",
-			Items: anyToSchema(s[0]),
+			Items: o.anyToSchema(s[0], filePath),
 		}
 	case map[string]interface{}:
 		var keys []string
@@ -183,7 +196,7 @@ func anyToSchema(i interface{}) Schema {
 
 		var props JsonItems
 		for _, key := range keys {
-			p := anyToSchema(s[key])
+			p := o.anyToSchema(s[key], filePath)
 			format := ""
 			if x, ok := p.(interface{ Format() string }); ok {
 				format = x.Format()
@@ -228,15 +241,8 @@ func anyToSchema(i interface{}) Schema {
 	}
 }
 
-// fullCommentMeta 处理在注释中的meta
-// 如下:
-// $path
-//   parameters: "js: [...model.FindPetByStatusParams, {name: 'status', required: true}]"
-//   resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
-// filename 指定当前注释在哪一个文件中, 会根据文件中import的pkg获取.
-// 返回结构体给最后组装yaml使用
-func fullCommentMeta(i []yaml.MapItem, filename string, key map[string]struct{}) JsonItems {
-	r := full(i, filename, key)
+func (o *OpenApi) fullCommentMetaToJson(i []yaml.MapItem, filename string) JsonItems {
+	r := o.fullCommentMeta(i, filename)
 	return yamlItemToJsonItem(r)
 }
 
@@ -259,11 +265,17 @@ func yamlItemToJsonItem(i []yaml.MapItem) JsonItems {
 	return r
 }
 
-func full(i []yaml.MapItem, filename string, key map[string]struct{}) []yaml.MapItem {
+// fullCommentMetaToJson 处理在注释中的meta
+// 如下:
+// $path
+//   parameters: "js: [...model.FindPetByStatusParams, {name: 'status', required: true}]"
+//   resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
+// filename 指定当前注释在哪一个文件中, 会根据文件中import的pkg获取.
+// 返回结构体给最后组装yaml使用
+func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapItem {
 	var r []yaml.MapItem
 	for _, item := range i {
 		s := item.Key.(string)
-		key[s] = struct{}{}
 
 		if strings.HasPrefix(s, "js-") {
 			vs, ok := item.Value.(string)
@@ -277,14 +289,13 @@ func full(i []yaml.MapItem, filename string, key map[string]struct{}) []yaml.Map
 		switch v := item.Value.(type) {
 		case string:
 			if strings.HasPrefix(v, "js: ") {
-				// js表达式
+				// 处理js 为yaml对象
 				jsCode := strings.Trim(v[3:], " ")
-				v, err := runJsExpress(jsCode, filename, key)
+				v, err := o.runJsExpress(jsCode, filename)
 				if err != nil {
 					panic(err)
 				}
 
-				// 处理js 为json对象
 				r = append(r, yaml.MapItem{
 					Key:   item.Key,
 					Value: v,
@@ -298,7 +309,7 @@ func full(i []yaml.MapItem, filename string, key map[string]struct{}) []yaml.Map
 		case []yaml.MapItem:
 			r = append(r, yaml.MapItem{
 				Key:   item.Key,
-				Value: full(v, filename, key),
+				Value: o.fullCommentMeta(v, filename),
 			})
 		case []interface{}:
 			r = append(r, yaml.MapItem{
@@ -312,8 +323,6 @@ func full(i []yaml.MapItem, filename string, key map[string]struct{}) []yaml.Map
 		default:
 			panic(fmt.Sprintf("uncased Value type %T", v))
 		}
-
-		delete(key, s)
 	}
 
 	return r
@@ -552,6 +561,7 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 }
 
 // 完成openapi, 入口
+// TODO
 func CompleteOpenapi(inYaml string) (dest string, err error) {
 	// 读取openapi
 	var kv []yaml.MapItem
@@ -561,13 +571,13 @@ func CompleteOpenapi(inYaml string) (dest string, err error) {
 		return "", err
 	}
 
-	newKv := full(kv, "", map[string]struct{}{})
+	//newKv := fullCommentMeta(kv, "", map[string]struct{}{})
 
-	out, err := yaml.Marshal(newKv)
-	if err != nil {
-		return
-	}
-
-	dest = string(out)
+	//out, err := yaml.Marshal(newKv)
+	//if err != nil {
+	//	return
+	//}
+	//
+	//dest = string(out)
 	return
 }
