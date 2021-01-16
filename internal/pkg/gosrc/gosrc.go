@@ -55,6 +55,9 @@ func (s *GoSrc) GetAbsPath(path string) (absDir string, exist bool, err error) {
 }
 
 func (s *GoSrc) MustGetAbsPath(path string) (absDir string, err error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
 	absDir, eixst, err := s.GetAbsPath(path)
 	if err != nil {
 		return

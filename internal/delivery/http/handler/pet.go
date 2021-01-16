@@ -19,6 +19,7 @@ var (
 )
 
 // PetHandler doc
+// $
 type PetHandler struct {
 	u usecase.PetUseCase
 }
@@ -37,7 +38,7 @@ type (
 //
 // $:
 //   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
-//   js-resp: '{200: {desc: "成功", content: schema([model.Pet]}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
+//   js-resp: '{200: {desc: "成功", content: schema([model.Pet])}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	var p model.FindPetByStatusParams

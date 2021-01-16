@@ -21,18 +21,24 @@ func NewGoParse(gosrc *gosrc.GoSrc) *GoParse {
 }
 
 // GetDoc 获取目标元素的注释
-// key的格式是: 路径/包名/元素, e.g.:  ../delivery/http/handler.PetHandler.FindPetByStatus
-func (g *GoParse) GetDoc(key string) (doc string, exist bool, err error) {
-	path, member := splitPkgPath(key)
-
-	// todo cache doc of the path
-
-	kc, err := parseDirDoc(path)
+// e.g.
+//  pkgDir : 支持两种格式
+//    go引入路径格式: github.com/zbysir/gopenapi/internal/delivery/http/handler
+//    包绝对路径: Z:\golang\go_project\gopenapi\internal\delivery\http\handler
+//  key: PetHandler.FindPetByStatus
+// 废弃
+func (g *GoParse) GetDoc(pkgDir string, key string) (doc string, exist bool, err error) {
+	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
 	if err != nil {
 		return
 	}
 
-	comment, ok := kc[member]
+	kc, err := parseDirDoc(pkgDir)
+	if err != nil {
+		return
+	}
+
+	comment, ok := kc[key]
 	if ok {
 		return comment.Text(), true, nil
 	}
@@ -40,7 +46,7 @@ func (g *GoParse) GetDoc(key string) (doc string, exist bool, err error) {
 	return
 }
 
-func (g *GoParse) GetPkgInfo(pkgDir string) (pkg *Pkg, err error) {
+func (g *GoParse) getPkgInfo(pkgDir string) (pkg *Pkg, err error) {
 	fs := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fs, pkgDir, nil, parser.PackageClauseOnly)
 	if err != nil {
@@ -60,17 +66,23 @@ func (g *GoParse) GetPkgInfo(pkgDir string) (pkg *Pkg, err error) {
 }
 
 // GetStruct 获取struct结构
-// pkgDir: ../delivery/http/handler
+// pkgDir: ../delivery/http/handler, 或者 基于gomod的引入路径
 // key:
 //   PetHandler
 //   or: PetHandler.FuncA
 func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, err error) {
+	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
+	if err != nil {
+		return
+	}
+
 	pa := NewParseAll()
 	err = pa.parse(pkgDir)
 	if err != nil {
 		return nil, false, err
 	}
 
+	fmt.Printf("def: %+v\n", pa.def)
 	def, exist = pa.def[key]
 	if !exist {
 		return
@@ -120,7 +132,7 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 		}
 
 		// 通过解析包代码获取包名
-		pkg, err := g.GetPkgInfo(p)
+		pkg, err := g.getPkgInfo(p)
 		if err != nil {
 			return nil, err
 		}

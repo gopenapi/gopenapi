@@ -96,7 +96,7 @@ $path:
 		t.Fatal(err)
 	}
 	x := openAPi.fullCommentMetaToJson(kv, "")
-	bs, err := json.Marshal(x)
+	bs, err := json.MarshalIndent(x, "  ", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,4 +164,24 @@ var config = {
 
 	t.Logf("%s", bs)
 
+}
+
+func TestParseDoc(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.FindPetByStatus")
+	if err != nil {
+		return
+	}
+	if !exist {
+		t.Fatal("not exist")
+	}
+	bs, err := json.MarshalIndent(d, "  ", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s", bs)
 }

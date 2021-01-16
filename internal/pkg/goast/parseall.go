@@ -29,7 +29,9 @@ func NewParseAll() *parseAll {
 //  类型
 type Def struct {
 	Name string
-	Type ast.Expr
+	Type ast.Expr `json:"-"`
+	// 定义在哪个文件
+	File string
 	Doc  *ast.CommentGroup
 }
 
@@ -38,7 +40,9 @@ type Let struct {
 	Value interface{}
 	Type  ast.Expr
 	Name  string
-	Doc   *ast.CommentGroup
+	// 定义在哪个文件
+	File string
+	Doc  *ast.CommentGroup
 }
 
 func (p *parseAll) parse(path string) (err error) {
@@ -49,7 +53,7 @@ func (p *parseAll) parse(path string) (err error) {
 	}
 
 	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
+		for filePath, file := range pkg.Files {
 			for _, decl := range file.Decls {
 				switch decl := decl.(type) {
 				case *ast.GenDecl:
@@ -68,16 +72,24 @@ func (p *parseAll) parse(path string) (err error) {
 								Name: spec.Name.Name,
 								Type: spec.Type,
 								Doc:  spec.Doc,
+								File: filePath,
 							}
 						case *ast.ValueSpec:
 							for i, name := range spec.Names {
+								var value interface{}
+								if len(spec.Values) > i {
+									value = expr2Interface(spec.Values[i])
+								}
 								p.let[name.Name] = &Let{
-									Value: expr2Interface(spec.Values[i]),
+									Value: value,
 									Type:  spec.Type,
 									Name:  name.Name,
 									Doc:   spec.Doc,
+									File:  filePath,
 								}
 							}
+						case *ast.ImportSpec:
+
 						default:
 							panic(fmt.Sprintf("uncased spec type %T", spec))
 						}
@@ -87,6 +99,7 @@ func (p *parseAll) parse(path string) (err error) {
 						Name: decl.Name.Name,
 						Type: decl.Type,
 						Doc:  decl.Doc,
+						File: filePath,
 					}
 				default:
 					panic(fmt.Sprintf("uncased decl type %T", decl))

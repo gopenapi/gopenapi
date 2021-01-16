@@ -9,6 +9,7 @@ import (
 	"github.com/zbysir/gopenapi/internal/pkg/js"
 	"go/ast"
 	"gopkg.in/yaml.v2"
+	"path"
 	"sort"
 	"strings"
 )
@@ -326,6 +327,42 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 	}
 
 	return r
+}
+
+// 入口
+func (o *OpenApi) GetGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) {
+	p, k := splitPkgPath(pathAndKey)
+
+	def, exist, err := o.goparse.GetStruct(p, k)
+	if err != nil {
+		return
+	}
+	if !exist {
+		return
+	}
+	g, err = o.parseGoDoc(def.Doc.Text(), def.File)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// splitPkgPath 分割路径src 为path和包名
+//  pathAndKey: ../internal/pkg/goast.GoMeta
+//  output:
+//    path: ../internal/pkg/goast
+//    key: GoMeta
+func splitPkgPath(src string) (pa, member string) {
+	p1, filename := path.Split(src)
+	ss := strings.Split(filename, ".")
+	if len(ss) != 0 {
+		p1 += ss[0]
+		member = strings.Join(ss[1:], ".")
+	}
+
+	pa = p1
+	return
 }
 
 type XData struct {

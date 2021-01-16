@@ -6,20 +6,6 @@ import (
 	"testing"
 )
 
-func TestGoParse(t *testing.T) {
-	goSrc, err := gosrc.NewGoSrcFromModFile("../../../")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := NewGoParse(goSrc)
-	doc, exist, err := p.GetDoc("../../delivery/http/handler.PetHandler.FindPetByStatus")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("%s %t", doc, exist)
-}
-
 func TestParseStruct(t *testing.T) {
 	goSrc, err := gosrc.NewGoSrcFromModFile("../../../go.mod")
 	if err != nil {
@@ -27,13 +13,16 @@ func TestParseStruct(t *testing.T) {
 	}
 	p := NewGoParse(goSrc)
 
-	kc, _, err := p.GetStruct("../../model", "Pet")
+	kc, exist, err := p.GetStruct("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !exist {
+		t.Fatal("not exist")
+	}
 
 	bs, _ := json.MarshalIndent(kc, " ", " ")
-	t.Logf("%s", bs)
+	t.Logf("%s %s", bs, kc.Doc.Text())
 }
 
 func TestGetFileImportPkg(t *testing.T) {
