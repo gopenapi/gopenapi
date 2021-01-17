@@ -130,6 +130,14 @@ func (o *OpenApi) struct2ParamsList(s ast.Expr, filePath string) []interface{} {
 	return l
 }
 
+func IsBaseType(t string) (is bool, openApiBase string) {
+	switch t {
+	case "int64":
+		return true, "int"
+	}
+	return
+}
+
 // 把任何格式的数据都转成Schema
 func (o *OpenApi) anyToSchema(i interface{}, filePath string) Schema {
 	switch s := i.(type) {
@@ -139,11 +147,19 @@ func (o *OpenApi) anyToSchema(i interface{}, filePath string) Schema {
 			Items: o.anyToSchema(s.Elt, filePath),
 		}
 	case *ast.Ident:
-		return &IdentSchema{
-			Type:    s.Name,
-			Default: nil,
-			Enum:    nil,
+		// 标识
+		// 如果是基础类型, 则返回, 否则还需要继续递归.
+		if is, t := IsBaseType(s.Name); is {
+			return &IdentSchema{
+				Type:    t,
+				Default: nil,
+				Enum:    nil,
+			}
 		}
+		fmt.Printf("ident %#v \n", s)
+		// 获取标识类型
+
+
 	case *ast.StructType:
 		var props JsonItems
 		for _, f := range s.Fields.List {

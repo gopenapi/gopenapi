@@ -2,16 +2,18 @@ package model
 
 type Pet struct {
 	// Id is Pet ID
-	Id       int64     `json:"id"`
+	//Id       int64     `json:"id"`
+
 	// Category Is pet category
 	Category Category  `json:"category"`
 	// Id is Pet name
-	Name     string    `json:"name"`
+	//Name     string    `json:"name"`
 	// Tag is Pet Tag
 	// $a: 1
-	Tags     []Tag     `json:"tags"`
-	Status   PetStatus `json:"status"`
+	//Tags     []Tag     `json:"tags"`
+	//Status   PetStatus `json:"status"`
 }
+
 type Pets []Pet
 
 type PetStatus string

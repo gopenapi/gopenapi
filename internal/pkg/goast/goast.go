@@ -82,7 +82,6 @@ func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, er
 		return nil, false, err
 	}
 
-	fmt.Printf("def: %+v\n", pa.def)
 	def, exist = pa.def[key]
 	if !exist {
 		return
@@ -121,7 +120,6 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 	pkgs = make(map[string]*Pkg)
 	for _, imp := range f.Imports {
 		importPath := strings.Trim(imp.Path.Value, `"'`)
-		fmt.Printf("%s\n", importPath)
 
 		p, exist, err := g.gosrc.GetAbsPath(importPath)
 		if err != nil {

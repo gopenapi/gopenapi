@@ -57,6 +57,7 @@ func TestRunJsExpress(t *testing.T) {
 	t.Logf("%s", bs)
 }
 
+// TODO CompleteOpenapi
 func TestCompleteOpenapi(t *testing.T) {
 	dest, err := CompleteOpenapi(`
 paths:
@@ -77,6 +78,21 @@ components:
 	}
 
 	t.Logf("%s", dest)
+}
+
+func TestToSchema(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := openAPi.runJsExpress("schema(model.Pet)",
+		"github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bs, _ := json.MarshalIndent(v, " ", " ")
+	t.Logf("%s", bs)
 }
 
 func TestFullCommentMeta(t *testing.T) {
