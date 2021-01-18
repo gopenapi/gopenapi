@@ -95,6 +95,31 @@ func TestToSchema(t *testing.T) {
 	t.Logf("%s", bs)
 }
 
+func TestAnyToSchema(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	def, exist, err := openAPi.goparse.GetStruct("Z:\\golang\\go_project\\gopenapi\\internal\\model", "Pet")
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	if !exist {
+		t.Fatal("not exist")
+		return
+	}
+
+	s, err := openAPi.anyToSchema(def.Type, "Z:\\golang\\go_project\\gopenapi\\internal\\model\\pet.go")
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	bs, _ := json.MarshalIndent(s, " ", " ")
+	t.Logf("%s", bs)
+}
+
 func TestFullCommentMeta(t *testing.T) {
 	// 读取openapi
 	var kv []yaml.MapItem
@@ -200,4 +225,23 @@ func TestParseDoc(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("%s", bs)
+}
+
+func TestJson(t *testing.T) {
+	x := ObjectProp{
+		Meta:        nil,
+		Description: "1111",
+		Tag:         nil,
+		Example:     nil,
+		Schema: &ObjectSchema{
+			Ref:        "x",
+			Type:       "obj",
+			Properties: nil,
+		},
+	}
+
+	t.Logf("%#v", x)
+
+	bs, err := json.MarshalIndent(&x, " ", " ")
+	t.Logf("%s %v", bs, err)
 }
