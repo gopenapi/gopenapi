@@ -1,15 +1,11 @@
 package model
 
-import "github.com/zbysir/gopenapi/internal/model/modelt"
-
 type Pet struct {
 	// Id is Pet ID
 	//Id       int64     `json:"id"`
 
 	// Category Is pet category
 	Category Category `json:"category"`
-
-	T modelt.T `json:"t"`
 
 	// Id is Pet name
 	//Name     string    `json:"name"`

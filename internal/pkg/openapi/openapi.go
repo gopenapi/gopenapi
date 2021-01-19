@@ -7,12 +7,9 @@ import (
 	"github.com/zbysir/gopenapi/internal/pkg/goast"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"github.com/zbysir/gopenapi/internal/pkg/js"
-	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"gopkg.in/yaml.v2"
 	"path"
-	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -44,7 +41,10 @@ func (p PkgGetter) GetMember(k string) interface{} {
 	if !exist {
 		return nil
 	}
-	return def.Type
+	return &GoExprWithPath{
+		expr: def.Type,
+		path: def.File,
+	}
 }
 
 func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
@@ -54,10 +54,10 @@ func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
 // 扩展openapi语法, 让其支持从go文件中读取注释信息
 // params:
 //  code: js表达式
-//  filepath: 当前go文件的路径, 会根据当前文件引入的包识别js表达式使用的是哪个包.
+//  goFilePath: 当前go文件的路径, 会根据当前文件引入的包识别js表达式使用的是哪个包.
 // return:
 //  可能是任何东西
-func (o *OpenApi) runJsExpress(code string, filePath string) (interface{}, error) {
+func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, error) {
 	//return nil,nil
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
 		// builtin func:
@@ -69,10 +69,10 @@ func (o *OpenApi) runJsExpress(code string, filePath string) (interface{}, error
 				switch s := stru.(type) {
 				case nil:
 					return nil, nil
-				case ast.Expr:
+				case *GoExprWithPath:
 					// case for follow syntax:
 					//   params(model.FindPetByStatusParams)
-					return o.struct2ParamsList(s, filePath), nil
+					return o.struct2ParamsList(s), nil
 				}
 				// 如果不是go的结构, 则原样返回
 				//   params([{name: 'status'}])
@@ -81,17 +81,17 @@ func (o *OpenApi) runJsExpress(code string, filePath string) (interface{}, error
 		} else if name == "schema" {
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
-				return o.anyToSchema(stru, filePath)
+				return o.anyToSchema(stru)
 			}, nil
 		}
 
 		// 获取当前文件所有引入的包
-		pkgs, err := o.goparse.GetFileImportPkg(filePath)
+		pkgs, err := o.goparse.GetFileImportPkg(goFilePath)
 		if err != nil {
 			return nil, err
 		}
 
-		// 判断name是否是pkg别名
+		// 判断name是否是pkg
 		if pkg, ispkg := pkgs[name]; ispkg {
 			// 如果是pkg, 则进入解析go源码流程
 			return &PkgGetter{
@@ -110,17 +110,17 @@ func (o *OpenApi) runJsExpress(code string, filePath string) (interface{}, error
 
 // 将struct解析成 openapi.parameters
 // 返回的是[]ParamsItem.
-func (o *OpenApi) struct2ParamsList(s ast.Expr, filePath string) []interface{} {
+func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 	var l []interface{}
-	switch s := s.(type) {
+	switch s := ep.expr.(type) {
 	case *ast.StructType:
 		for _, f := range s.Fields.List {
-			gd, err := o.parseGoDoc(f.Doc.Text(), filePath)
+			gd, err := o.parseGoDoc(f.Doc.Text(), ep.path)
 			if err != nil {
 				fmt.Printf("[err] %v", err)
 				return nil
 			}
-			schema, err := o.anyToSchema(f.Type, filePath)
+			schema, err := o.goAstToSchema(f.Type, ep.path)
 			if err != nil {
 				fmt.Printf("[err] %v\n", err)
 				continue
@@ -141,177 +141,24 @@ func (o *OpenApi) struct2ParamsList(s ast.Expr, filePath string) []interface{} {
 	return l
 }
 
-func IsBaseType(t string) (is bool, openApiBase string) {
+// all type of openapi: array, boolean, integer, number , object, string
+func IsBaseType(t string) (is bool, openApiType string) {
 	switch t {
-	case "int64":
-		return true, "int"
+	case "int64", "int32", "int8", "int", "uint8", "uint32", "uint64", "uint":
+		return true, "integer"
+	case "bool":
+		return true, "boolean"
+	case "float32", "float64":
+		return true, "number"
+	case "byte":
+		return true, "integer"
 	case "string":
 		return true, "string"
+	case "complex128":
+		// 复数 暂不处理
+		return true, "complex"
 	}
 	return
-}
-
-// 把任何格式的数据都转成Schema
-func (o *OpenApi) anyToSchema(i interface{}, filePath string) (Schema, error) {
-	switch s := i.(type) {
-	case *ast.ArrayType:
-		schema, err := o.anyToSchema(s.Elt, filePath)
-		if err != nil {
-			return nil, err
-		}
-		return &ArraySchema{
-			Type:  "array",
-			Items: schema,
-		}, nil
-	case *ast.Ident:
-		// 标识
-		// 如果是基础类型, 则返回, 否则还需要继续递归.
-		if is, t := IsBaseType(s.Name); is {
-			return &IdentSchema{
-				Type:    t,
-				Default: nil,
-				Enum:    nil,
-			}, nil
-		}
-		// TODO 获取标识类型
-		def, exist, err := o.goparse.GetStruct(filepath.Dir(filePath), s.Name)
-		if err != nil {
-			return nil, err
-		}
-		if !exist {
-			log.Warningf("can't found Type: %s", s.Name)
-			return &NilSchema{}, nil
-		}
-		return o.anyToSchema(def.Type, def.File)
-
-		//return &IdentSchema{
-		//	Type:    "int32",
-		//	Default: nil,
-		//	Enum:    nil,
-		//},nil
-		return &NilSchema{}, nil
-	case *ast.SelectorExpr:
-		// for model.T syntax
-		pkgName := s.X.(*ast.Ident).Name
-
-		pkgs, err := o.goparse.GetFileImportPkg(filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		if pkg, ispkg := pkgs[pkgName]; ispkg {
-			str, exist, err := PkgGetter{
-				goparse: o.goparse,
-				pkg:     pkg,
-			}.GetStruct(s.Sel.Name)
-			if err != nil || !exist {
-				return &NilSchema{}, err
-			}
-
-			schema, err := o.anyToSchema(str.Type, str.File)
-			return schema, err
-		}
-
-		return &NilSchema{}, nil
-	case *ast.StructType:
-		var props JsonItems
-
-		for _, f := range s.Fields.List {
-			p, err := o.anyToSchema(f.Type, filePath)
-			if err != nil {
-				return nil, err
-			}
-
-			gd, err := o.parseGoDoc(f.Doc.Text(), filePath)
-			if err != nil {
-				return nil, err
-			}
-
-			props = append(props, Item{
-				Key: f.Names[0].Name,
-				Val: ObjectProp{
-					Schema:      p,
-					Meta:        gd.Meta,
-					Description: gd.Doc,
-					Tag:         encodeTag(f.Tag),
-				},
-			})
-		}
-
-		return &ObjectSchema{
-			Type:       "object",
-			Properties: props,
-		}, nil
-	case []interface{}:
-		if len(s) == 0 {
-			item, err := o.anyToSchema(nil, filePath)
-			if err != nil {
-				return nil, err
-			}
-			return &ArraySchema{
-				Type:  "array",
-				Items: item,
-			}, nil
-		}
-		item, err := o.anyToSchema(s[0], filePath)
-		if err != nil {
-			return nil, err
-		}
-		return &ArraySchema{
-			Type:  "array",
-			Items: item,
-		}, nil
-	case map[string]interface{}:
-		var keys []string
-		for k := range s {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-
-		var props JsonItems
-		for _, key := range keys {
-			p, err := o.anyToSchema(s[key], filePath)
-			if err != nil {
-				return nil, err
-			}
-			props = append(props, Item{
-				Key: key,
-				Val: ObjectProp{
-					Schema:      p,
-					Meta:        nil,
-					Description: "",
-					Tag:         nil,
-					Example:     s[key],
-				},
-			})
-		}
-
-		return &ObjectSchema{
-			Type:       "object",
-			Properties: props,
-		}, nil
-	case string:
-		return &IdentSchema{
-			Type:    "string",
-			Default: "",
-			Enum:    nil,
-		}, nil
-	case int64, int:
-		return &IdentSchema{
-			Type:    "int",
-			Default: 0,
-			Enum:    nil,
-		}, nil
-	case nil:
-		return &ObjectSchema{
-			Type:       "null",
-			Properties: nil,
-		}, nil
-	default:
-		panic(fmt.Sprintf("uncased type2Schema type: %T, %+v", s, s))
-	}
-
 }
 
 func (o *OpenApi) fullCommentMetaToJson(i []yaml.MapItem, filename string) JsonItems {
@@ -563,141 +410,6 @@ func (j JsonItems) Get(key string) (v interface{}, exist bool) {
 
 	return nil, false
 }
-
-type ObjectSchema struct {
-	Ref string `json:"$ref,omitempty"`
-
-	Type string `json:"type"`
-
-	Properties JsonItems `json:"properties"`
-}
-
-func (o *ObjectSchema) _schema() {}
-
-func (a *ObjectSchema) GetType() string {
-	return a.Type
-}
-
-type ObjectProp struct {
-	Schema
-	// ref 是自动获取到的ref, 就算ref存在下方的其他字段也会存在, 所以你可以选择是否使用ref.
-	//Ref         string            `json:"$ref,omitempty"`
-	//Type        string            `json:"type"`
-	//Format      string            `json:"format"`
-
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
-}
-
-// 对于嵌套了Interface的结构体, json不支持嵌入式序列化, 故出此下策.
-type ObjectPropObj struct {
-	*ObjectSchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
-}
-
-type ObjectPropArray struct {
-	*ArraySchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
-}
-
-type ObjectPropIdent struct {
-	*IdentSchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
-}
-
-type ObjectPropNil struct {
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
-}
-
-func (o ObjectProp) MarshalJSON() ([]byte, error) {
-	switch s := o.Schema.(type) {
-	case *ObjectSchema:
-		return json.Marshal(ObjectPropObj{
-			ObjectSchema: s,
-			Meta:         o.Meta,
-			Description:  o.Description,
-			Tag:          o.Tag,
-			Example:      o.Example,
-		})
-	case *ArraySchema:
-		return json.Marshal(ObjectPropArray{
-			ArraySchema: s,
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
-		})
-	case *IdentSchema:
-		return json.Marshal(ObjectPropIdent{
-			IdentSchema: s,
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
-		})
-	case *NilSchema:
-		return json.Marshal(ObjectPropNil{
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
-		})
-	default:
-		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
-	}
-
-	return nil, nil
-}
-
-// 基础类型, string / int
-type IdentSchema struct {
-	Ref string `json:"$ref,omitempty"`
-
-	Type    string        `json:"type"`
-	Default interface{}   `json:"default,omitempty"`
-	Enum    []interface{} `json:"enum,omitempty"`
-}
-
-func (a *IdentSchema) GetType() string {
-	return a.Type
-}
-
-func (s *IdentSchema) _schema() {}
-
-func (s *IdentSchema) Format() string {
-	return s.Type
-}
-
-type NilSchema struct {
-}
-
-func (n NilSchema) _schema() {
-}
-
-func (n NilSchema) GetType() string {
-	return "nil"
-}
-
-func (a *ArraySchema) _schema() {}
 
 // TODO 使用js脚本让用户可以自己写逻辑
 // 将元数据转成openapi.params

@@ -101,7 +101,7 @@ func TestAnyToSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	def, exist, err := openAPi.goparse.GetStruct("Z:\\golang\\go_project\\gopenapi\\internal\\model", "Pet")
+	def, exist, err := openAPi.goparse.GetStruct("github.com/zbysir/gopenapi/internal/model/modelt", "Pet")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -111,7 +111,7 @@ func TestAnyToSchema(t *testing.T) {
 		return
 	}
 
-	s, err := openAPi.anyToSchema(def.Type, "Z:\\golang\\go_project\\gopenapi\\internal\\model\\pet.go")
+	s, err := openAPi.anyToSchema(def)
 	if err != nil {
 		t.Fatal(err)
 		return

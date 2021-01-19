@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strconv"
+	"strings"
 )
 
 // 存储所有类型
@@ -14,13 +16,13 @@ type parseAll struct {
 	// 所有的定义
 	def map[string]*Def
 	// 所有的变量/常量
-	let map[string]*Let
+	let []*Let
 }
 
 func NewParseAll() *parseAll {
 	return &parseAll{
 		def: map[string]*Def{},
-		let: map[string]*Let{},
+		let: nil,
 	}
 }
 
@@ -80,13 +82,13 @@ func (p *parseAll) parse(path string) (err error) {
 								if len(spec.Values) > i {
 									value = expr2Interface(spec.Values[i])
 								}
-								p.let[name.Name] = &Let{
+								p.let = append(p.let, &Let{
 									Value: value,
 									Type:  spec.Type,
 									Name:  name.Name,
 									Doc:   spec.Doc,
 									File:  filePath,
-								}
+								})
 							}
 						case *ast.ImportSpec:
 
@@ -112,8 +114,26 @@ func (p *parseAll) parse(path string) (err error) {
 }
 
 // 将表达转为基础的类型
-// 只支持 string / int / float 类型
+// 只支持 基础 类型 (ast.BasicLit)
 func expr2Interface(expr ast.Expr) interface{} {
-	// TODO expr2Interface
+	switch expr := expr.(type) {
+	case *ast.BasicLit:
+		switch expr.Kind {
+		case token.INT:
+			i, _ := strconv.ParseInt(expr.Value, 10, 64)
+			return i
+		case token.FLOAT:
+			i, _ := strconv.ParseFloat(expr.Value, 64)
+			return i
+		case token.IMAG:
+			// 复数, 暂不处理
+			return nil
+		case token.CHAR:
+			return strings.Trim(expr.Value, "'")
+		case token.STRING:
+			return strings.Trim(expr.Value, `"`)
+		}
+		return expr.Value
+	}
 	return expr
 }

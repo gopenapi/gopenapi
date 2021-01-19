@@ -1,7 +1,6 @@
 package goast
 
 import (
-	"fmt"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"go/ast"
 	"go/parser"
@@ -18,32 +17,6 @@ type GoParse struct {
 
 func NewGoParse(gosrc *gosrc.GoSrc) *GoParse {
 	return &GoParse{gosrc: gosrc}
-}
-
-// GetDoc 获取目标元素的注释
-// e.g.
-//  pkgDir : 支持两种格式
-//    go引入路径格式: github.com/zbysir/gopenapi/internal/delivery/http/handler
-//    包绝对路径: Z:\golang\go_project\gopenapi\internal\delivery\http\handler
-//  key: PetHandler.FindPetByStatus
-// 废弃
-func (g *GoParse) GetDoc(pkgDir string, key string) (doc string, exist bool, err error) {
-	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
-	if err != nil {
-		return
-	}
-
-	kc, err := parseDirDoc(pkgDir)
-	if err != nil {
-		return
-	}
-
-	comment, ok := kc[key]
-	if ok {
-		return comment.Text(), true, nil
-	}
-
-	return
 }
 
 func (g *GoParse) getPkgInfo(pkgDir string) (pkg *Pkg, err error) {
@@ -87,7 +60,58 @@ func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, er
 		return
 	}
 
+	def.File, err = g.gosrc.GetPkgPath(def.File)
+	if err != nil {
+		return nil, false, err
+	}
+
 	return
+}
+
+type Enum struct {
+	Type   string        `json:"type"`
+	Values []interface{} `json:"values"`
+	Keys   []string      `json:"keys"`
+}
+
+// GetEnum 获取枚举值, 只支持基础类型.
+func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
+	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
+	if err != nil {
+		return
+	}
+
+	pa := NewParseAll()
+	err = pa.parse(pkgDir)
+	if err != nil {
+		return nil, err
+	}
+	enum = &Enum{
+		Type:   typ,
+		Values: nil,
+	}
+
+	for _, l := range pa.let {
+		if id, ok := l.Type.(*ast.Ident); ok {
+			if id.Name == typ {
+				enum.Values = append(enum.Values, l.Value)
+				enum.Keys = append(enum.Keys, l.Name)
+			}
+		}
+	}
+
+	return
+}
+
+func (e *Enum) FirstValue() (string, interface{}) {
+	if e == nil {
+		return "", nil
+	}
+	if len(e.Values) == 0 {
+		return "", nil
+	}
+
+	return e.Keys[0], e.Values[0]
 }
 
 type Pkg struct {
@@ -140,66 +164,23 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 			localName = imp.Name.Name
 		}
 
+		pkg.Dir, err = g.gosrc.GetPkgPath(pkg.Dir)
+		if err != nil {
+			return nil, err
+		}
+
 		pkgs[localName] = pkg
 	}
 
 	return
 }
 
-func parseDirDoc(path string) (kc map[string]*ast.CommentGroup, err error) {
-	// todo cache the path
-	fs := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fs, path, nil, parser.ParseComments|parser.AllErrors)
-	if err != nil {
-		return
+// github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go 返回 github.com/zbysir/gopenapi/internal/delivery/http/handler
+func (g *GoParse) GetFileInPkg(filePath string) (pkg string) {
+	x := strings.LastIndexByte(filePath, '/')
+	if x == -1 {
+		return filePath
 	}
 
-	// 扫描所有对象和他们的注释
-	kc = map[string]*ast.CommentGroup{}
-	for _, pkg := range pkgs {
-		for _, v := range pkg.Files {
-			for _, d := range v.Decls {
-				switch d := d.(type) {
-				case *ast.GenDecl:
-					genDeclDoc := d.Doc
-					spDoc := genDeclDoc
-					for _, sp := range d.Specs {
-						switch sp := sp.(type) {
-						case *ast.TypeSpec:
-							if sp.Doc != nil {
-								spDoc = sp.Doc
-							}
-
-							kc[sp.Name.Name] = spDoc
-						case *ast.ValueSpec:
-							if sp.Doc != nil {
-								spDoc = sp.Doc
-							}
-
-							// a,b,c = 1,2,3
-							for _, name := range sp.Names {
-								kc[name.Name] = spDoc
-							}
-						}
-					}
-				case *ast.FuncDecl:
-					// 方法名
-					key := d.Name.Name
-
-					// 接受者
-					for _, r := range d.Recv.List {
-						switch r := r.Type.(type) {
-						case *ast.StarExpr:
-							key = r.X.(*ast.Ident).Name + "." + key
-						}
-					}
-					kc[key] = d.Doc
-				default:
-					panic(fmt.Sprintf("uncased Decl type: %T", d))
-				}
-			}
-		}
-	}
-
-	return
+	return filePath[:x]
 }

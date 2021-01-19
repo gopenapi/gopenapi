@@ -3,11 +3,13 @@ package gosrc
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
+// GoSrc 负责管理 包引入地址 和 实际文件地址 之间的关系
 type GoSrc struct {
 	// module名字
 	ModuleName       string `json:"module_name"`
@@ -51,6 +53,16 @@ func (s *GoSrc) GetAbsPath(path string) (absDir string, exist bool, err error) {
 
 	absDir = filepath.Clean(strings.ReplaceAll(path, s.ModuleName, s.AbsModuleFileDir))
 	exist = true
+	return
+}
+
+// GetPkgPath 返回相对路径
+func (s *GoSrc) GetPkgPath(absPath string) (pkgPath string, err error) {
+	rel, err := filepath.Rel(s.AbsModuleFileDir, absPath)
+	if err != nil {
+		return
+	}
+	pkgPath = fmt.Sprintf("%s/%s", s.ModuleName, strings.ReplaceAll(rel, string(os.PathSeparator), "/"))
 	return
 }
 
