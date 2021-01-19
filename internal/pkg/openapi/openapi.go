@@ -33,7 +33,7 @@ type PkgGetter struct {
 }
 
 func (p PkgGetter) GetMember(k string) interface{} {
-	def, exist, err := p.goparse.GetStruct(p.pkg.Dir, k)
+	def, exist, err := p.goparse.GetDef(p.pkg.Dir, k)
 	if err != nil {
 		fmt.Printf("[err] %v", err)
 		return nil
@@ -42,13 +42,14 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		return nil
 	}
 	return &GoExprWithPath{
+		goparse : p.goparse,
 		expr: def.Type,
 		path: def.File,
 	}
 }
 
 func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
-	return p.goparse.GetStruct(p.pkg.Dir, k)
+	return p.goparse.GetDef(p.pkg.Dir, k)
 }
 
 // 扩展openapi语法, 让其支持从go文件中读取注释信息
@@ -252,7 +253,7 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 func (o *OpenApi) GetGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)
 
-	def, exist, err := o.goparse.GetStruct(p, k)
+	def, exist, err := o.goparse.GetDef(p, k)
 	if err != nil {
 		return
 	}

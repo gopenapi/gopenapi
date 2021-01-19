@@ -167,7 +167,7 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 			}, nil
 		}
 		// 获取当前包下的结构体
-		def, exist, err := o.goparse.GetStruct(o.goparse.GetFileInPkg(exprInFile), s.Name)
+		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgFile(exprInFile), s.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 		// 如果是基础类型, 则需要获取枚举值
 		if id, ok := schema.(*IdentSchema); ok {
 			// 查找Enum
-			enum, err := o.goparse.GetEnum(o.goparse.GetFileInPkg(exprInFile), s.Name)
+			enum, err := o.goparse.GetEnum(o.goparse.GetPkgFile(exprInFile), s.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -255,9 +255,48 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 	return &NilSchema{}, nil
 }
 
-type GoExprWithPath struct{
-	expr ast.Expr
-	path string
+type GoExprWithPath struct {
+	goparse *goast.GoParse
+	expr    ast.Expr
+	path    string
+}
+
+// 如果类型是 结构体, 则还需要查询到子方法, 或者子成员
+func (g *GoExprWithPath) GetMember(k string) interface{} {
+	str, ok := g.expr.(*ast.StructType)
+	if !ok {
+		return nil
+	}
+
+	for _, field := range str.Fields.List {
+		if k == field.Names[0].Name {
+			return &GoExprWithPath{
+				goparse: g.goparse,
+				expr:    field.Type,
+				path:    g.path,
+			}
+		}
+	}
+
+	// 查找方法
+	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.path), str)
+	if err != nil {
+		return nil
+	}
+
+	//
+	log.Infof("funcs %+v", funcs)
+
+	fun, exist := funcs[k]
+	if !exist {
+		return nil
+	}
+
+	return &GoExprWithPath{
+		goparse: g.goparse,
+		expr:    fun.Type,
+		path:    g.path,
+	}
 }
 
 // 把任何格式的数据都转成Schema

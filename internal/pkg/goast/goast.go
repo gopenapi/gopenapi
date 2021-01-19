@@ -2,6 +2,7 @@ package goast
 
 import (
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
+	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -38,12 +39,13 @@ func (g *GoParse) getPkgInfo(pkgDir string) (pkg *Pkg, err error) {
 	return
 }
 
-// GetStruct 获取struct结构
-// pkgDir: ../delivery/http/handler, 或者 基于gomod的引入路径
+// GetDef 获取结构体/方法定义
+// pkgDir: 基于gomod的引入路径
 // key:
 //   PetHandler
 //   or: PetHandler.FuncA
-func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, err error) {
+//   不支持查询结构体成员属性.
+func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err error) {
 	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
 	if err != nil {
 		return
@@ -55,7 +57,10 @@ func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, er
 		return nil, false, err
 	}
 
-	def, exist = pa.def[key]
+	// 如果key包含了., 说明还需要查询子方法
+	kk := strings.Split(key, ".")
+
+	def, exist = pa.def[kk[0]]
 	if !exist {
 		return
 	}
@@ -63,6 +68,22 @@ func (g *GoParse) GetStruct(pkgDir string, key string) (def *Def, exist bool, er
 	def.File, err = g.gosrc.GetPkgPath(def.File)
 	if err != nil {
 		return nil, false, err
+	}
+
+	if len(kk) > 1 {
+		funcs, err := g.GetStructFunc(pkgDir, def.Type)
+		if err != nil {
+			return nil, false, err
+		}
+
+		//
+		log.Infof("funcs %+v", funcs)
+
+		fun, exist := funcs[kk[1]]
+		if !exist {
+			return nil, false, nil
+		}
+		return fun, true, nil
 	}
 
 	return
@@ -96,6 +117,36 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 			if id.Name == typ {
 				enum.Values = append(enum.Values, l.Value)
 				enum.Keys = append(enum.Keys, l.Name)
+			}
+		}
+	}
+
+	return
+}
+
+// GetStructFunc 获取结构体上的func
+// TODO 还没完成
+func (g *GoParse) GetStructFunc(pkgDir string, typ ast.Expr) (enum map[string]*Def, err error) {
+	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
+	if err != nil {
+		return
+	}
+
+	pa := NewParseAll()
+	err = pa.parse(pkgDir)
+	if err != nil {
+		return nil, err
+	}
+
+	enum = map[string]*Def{}
+	for _, d := range pa.def {
+		switch d.Type.(type) {
+		case *ast.FuncType:
+			if len(d.FuncRecv.List) != 0 {
+				recvName := d.FuncRecv.List[0].Type
+				if recvName == typ {
+					enum[d.Name] = d
+				}
 			}
 		}
 	}
@@ -175,8 +226,9 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 	return
 }
 
+// GetPkgFile 获取文件所在的pkg
 // github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go 返回 github.com/zbysir/gopenapi/internal/delivery/http/handler
-func (g *GoParse) GetFileInPkg(filePath string) (pkg string) {
+func (g *GoParse) GetPkgFile(filePath string) (pkg string) {
 	x := strings.LastIndexByte(filePath, '/')
 	if x == -1 {
 		return filePath

@@ -13,7 +13,7 @@ func TestParseStruct(t *testing.T) {
 	}
 	p := NewGoParse(goSrc)
 
-	kc, exist, err := p.GetStruct("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
+	kc, exist, err := p.GetDef("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
 	if err != nil {
 		t.Fatal(err)
 	}

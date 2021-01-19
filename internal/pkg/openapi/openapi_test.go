@@ -101,7 +101,7 @@ func TestAnyToSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	def, exist, err := openAPi.goparse.GetStruct("github.com/zbysir/gopenapi/internal/model/modelt", "Pet")
+	def, exist, err := openAPi.goparse.GetDef("github.com/zbysir/gopenapi/internal/model/modelt", "Pet")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -213,7 +213,8 @@ func TestParseDoc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.FindPetByStatus")
+	// internal/delivery/http/handler.PetHandler.FindPet
+	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus")
 	if err != nil {
 		return
 	}

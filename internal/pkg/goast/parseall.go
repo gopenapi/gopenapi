@@ -9,11 +9,9 @@ import (
 	"strings"
 )
 
-// 存储所有类型
-//   TypeSpec: 类型申明
-//   Func: 方法声明
+// 存储所有类型定义和变量/常量
 type parseAll struct {
-	// 所有的定义
+	// 所有的类型定义(包括方法)
 	def map[string]*Def
 	// 所有的变量/常量
 	let []*Let
@@ -32,6 +30,9 @@ func NewParseAll() *parseAll {
 type Def struct {
 	Name string
 	Type ast.Expr `json:"-"`
+
+	// 只有方法定义有这个值
+	FuncRecv *ast.FieldList
 	// 定义在哪个文件
 	File string
 	Doc  *ast.CommentGroup
@@ -98,10 +99,11 @@ func (p *parseAll) parse(path string) (err error) {
 					}
 				case *ast.FuncDecl:
 					p.def[decl.Name.Name] = &Def{
-						Name: decl.Name.Name,
-						Type: decl.Type,
-						Doc:  decl.Doc,
-						File: filePath,
+						Name:     decl.Name.Name,
+						Type:     decl.Type,
+						Doc:      decl.Doc,
+						FuncRecv: decl.Recv,
+						File:     filePath,
 					}
 				default:
 					panic(fmt.Sprintf("uncased decl type %T", decl))
