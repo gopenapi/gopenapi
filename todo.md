@@ -1,4 +1,4 @@
-- [ ] schema支持枚举
+- [x] schema支持枚举
 
   处理如下代码的 PetStatus 为基础类型, 并且生成枚举/default
   ```
