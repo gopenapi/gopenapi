@@ -30,11 +30,16 @@ const (
 // $in: path
 type FindPetByStatusParams struct {
 	// Status values that need to be considered for filter
-	// $required: true
+	// $:
+	//   required: true
+	//   in: query
 	Status []PetStatus `form:"status"`
 }
 
 type GetPetById struct {
-	// Id ID
+	// Id of pet to return
+	// $:
+	//   required: true
+	//   in: path
 	Id int64 `uri:"id"`
 }

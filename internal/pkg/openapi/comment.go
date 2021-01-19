@@ -9,10 +9,16 @@ import (
 // 处理 go 注释为元数据
 
 type GoDoc struct {
-	// Doc 是整个注释(处理变量部分)
-	Doc string `json:"doc"`
+	// FullDoc 是整个注释(除去变量部分)
+	FullDoc string `json:"doc"`
+
+	// Doc的第一句
+	Summary string `json:"summary"`
+	// Doc的剩余
+	Description string `json:"description"`
+
 	// Meta 是变量部分, 应该使用json序列化后(给js脚本)使用
-	Meta JsonItems
+	Meta JsonItems `json:"meta"`
 }
 
 // parseGoDoc 将注释转为 纯注释文本 和 支持json序列化的Meta.
@@ -72,9 +78,19 @@ func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoDoc, error) {
 		yamlObj = append(yamlObj, r)
 	}
 
+	doc = strings.TrimSpace(pureDoc.String())
+
+	// 取出第一句作为Summary
+	docX := doc
+	lines = strings.Split(docX, "\n\n")
+	summary := lines[0]
+	description := strings.Join(lines[1:], "\n\n")
+
 	return &GoDoc{
-		Doc:  strings.TrimSpace(pureDoc.String()),
-		Meta: yamlItemToJsonItem(combinObj(yamlObj...)),
+		FullDoc:     doc,
+		Summary:     summary,
+		Description: description,
+		Meta:        yamlItemToJsonItem(combinObj(yamlObj...)),
 	}, nil
 }
 

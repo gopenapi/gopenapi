@@ -15,6 +15,8 @@ import (
 
 type OpenApi struct {
 	goparse *goast.GoParse
+
+	JsCode string
 }
 
 func NewOpenApi(gomodFile string) (*OpenApi, error) {
@@ -42,9 +44,9 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		return nil
 	}
 	return &GoExprWithPath{
-		goparse : p.goparse,
-		expr: def.Type,
-		path: def.File,
+		goparse: p.goparse,
+		expr:    def.Type,
+		path:    def.File,
 	}
 }
 
@@ -130,7 +132,7 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 				From:   "go",
 				Name:   f.Names[0].Name,
 				Tag:    encodeTag(f.Tag),
-				Doc:    gd.Doc,
+				Doc:    gd.FullDoc,
 				Meta:   gd.Meta,
 				Schema: schema,
 			})
@@ -473,7 +475,7 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 
 // 完成openapi, 入口
 // TODO
-func CompleteOpenapi(inYaml string) (dest string, err error) {
+func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 	// 读取openapi
 	var kv []yaml.MapItem
 
@@ -482,13 +484,80 @@ func CompleteOpenapi(inYaml string) (dest string, err error) {
 		return "", err
 	}
 
-	//newKv := fullCommentMeta(kv, "", map[string]struct{}{})
+	newKv, err := o.completeYaml(kv)
+	if err != nil {
+		return
+	}
 
-	//out, err := yaml.Marshal(newKv)
-	//if err != nil {
-	//	return
-	//}
-	//
-	//dest = string(out)
+	out, err := yaml.Marshal(newKv)
+	if err != nil {
+		return
+	}
+
+	dest = string(out)
+	return
+}
+func (o *OpenApi) runConfigJs(in []byte) (jsBs []byte, err error) {
+	return in, err
+}
+func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error) {
+	for _, item := range in {
+		key := item.Key.(string)
+
+		// x-$path
+		if strings.HasPrefix(key, "x-$") {
+			if v, ok := item.Value.(string); ok {
+				g, exist, err := o.GetGoDoc(v)
+				if err != nil {
+					return nil, err
+				}
+				if !exist {
+					out = append(out, yaml.MapItem{
+						Key:   key,
+						Value: "gopenapi-err: can't resolve path",
+					})
+					continue
+				}
+
+				inbs, err := json.Marshal(g)
+				if err != nil {
+					return nil, err
+				}
+
+				outBs, err := o.runConfigJs(inbs)
+				if err != nil {
+					return nil, err
+				}
+
+				var outI interface{}
+
+				err = json.Unmarshal(outBs, &outI)
+				if err != nil {
+					return nil, err
+				}
+
+				out = append(out, yaml.MapItem{
+					Key:   key,
+					Value: outI,
+				})
+				continue
+			}
+		}
+
+		switch v := item.Value.(type) {
+		case []yaml.MapItem:
+			completeYaml, err := o.completeYaml(v)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, yaml.MapItem{
+				Key:   item.Key,
+				Value: completeYaml,
+			})
+			continue
+		}
+
+		out = append(out, item)
+	}
 	return
 }

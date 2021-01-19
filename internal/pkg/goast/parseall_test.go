@@ -5,7 +5,7 @@ import "testing"
 func TestParseAll(t *testing.T) {
 	pa := parseAll{
 		def: map[string]*Def{},
-		let: map[string]*Let{},
+		let: nil,
 	}
 	err := pa.parse("../../model")
 	if err != nil {
@@ -17,6 +17,6 @@ func TestParseAll(t *testing.T) {
 	}
 
 	for k, v := range pa.let {
-		t.Logf("%s %+v", k, v)
+		t.Logf("%v %+v", k, v)
 	}
 }

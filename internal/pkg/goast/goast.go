@@ -1,6 +1,7 @@
 package goast
 
 import (
+	"fmt"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
@@ -71,7 +72,7 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 	}
 
 	if len(kk) > 1 {
-		funcs, err := g.GetStructFunc(pkgDir, def.Type)
+		funcs, err := g.GetStructFunc(pkgDir, kk[0])
 		if err != nil {
 			return nil, false, err
 		}
@@ -125,8 +126,7 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 }
 
 // GetStructFunc 获取结构体上的func
-// TODO 还没完成
-func (g *GoParse) GetStructFunc(pkgDir string, typ ast.Expr) (enum map[string]*Def, err error) {
+func (g *GoParse) GetStructFunc(pkgDir string, typName string) (enum map[string]*Def, err error) {
 	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
 	if err != nil {
 		return
@@ -143,8 +143,18 @@ func (g *GoParse) GetStructFunc(pkgDir string, typ ast.Expr) (enum map[string]*D
 		switch d.Type.(type) {
 		case *ast.FuncType:
 			if len(d.FuncRecv.List) != 0 {
-				recvName := d.FuncRecv.List[0].Type
-				if recvName == typ {
+				expr := d.FuncRecv.List[0].Type
+
+				recvName := ""
+				switch expr := expr.(type) {
+				case *ast.Ident:
+					recvName = expr.Name
+				case *ast.StarExpr:
+					recvName = expr.X.(*ast.Ident).Name
+				default:
+					panic(fmt.Sprintf("uncased Type of FuncRecv: %T", expr))
+				}
+				if recvName == typName {
 					enum[d.Name] = d
 				}
 			}

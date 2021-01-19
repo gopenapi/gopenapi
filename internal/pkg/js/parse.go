@@ -7,7 +7,7 @@ import (
 )
 
 func ParseExpress(code string) (ast.Expression, error) {
-	p, err := parser.ParseFile(nil, "js", fmt.Sprintf("(%s)", code), 0)
+	p, err := parser.ParseFile(nil, fmt.Sprintf("'%s'",code), fmt.Sprintf("(%s)", code), 0)
 	if err != nil {
 		return nil, err
 	}

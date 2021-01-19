@@ -32,7 +32,7 @@ type Def struct {
 	Type ast.Expr `json:"-"`
 
 	// 只有方法定义有这个值
-	FuncRecv *ast.FieldList
+	FuncRecv *ast.FieldList `json:"-"`
 	// 定义在哪个文件
 	File string
 	Doc  *ast.CommentGroup

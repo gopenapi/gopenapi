@@ -24,13 +24,6 @@ type PetHandler struct {
 	u usecase.PetUseCase
 }
 
-// Test type doc
-type (
-	PetHandler2 struct {
-		u usecase.PetUseCase
-	}
-)
-
 // FindPetByStatus Is Api that do Finds Pets by status
 // .abc
 //
@@ -38,7 +31,9 @@ type (
 //
 // $:
 //   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
-//   js-resp: '{200: {desc: "成功", content: schema([model.Pet])}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
+//   js-resp: |
+//     {200: {desc: "成功", schema: schema([model.Pet])},
+//       401: {desc: "没权限", schema: schema({msg: "没权限"})}, }
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	var p model.FindPetByStatusParams
@@ -57,9 +52,12 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	ctx.JSON(200, r)
 }
 
-// $path
-//    params: {...model.GetPetById}
-//    resp: model.Pet
+// GetPet Find pet by ID
+//
+// Returns a single pet
+// $:
+//    js-params: "params(model.GetPetById)"
+//    js-resp: "{200: {schema: schema(model.Pet)}}"
 //
 func (h *PetHandler) GetPet(ctx *gin.Context) {
 	var p model.GetPetById

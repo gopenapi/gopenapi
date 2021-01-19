@@ -59,16 +59,20 @@ func TestRunJsExpress(t *testing.T) {
 
 // TODO CompleteOpenapi
 func TestCompleteOpenapi(t *testing.T) {
-	dest, err := CompleteOpenapi(`
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dest, err := openAPi.CompleteYaml(`
 paths:
   /pet/findByStatus:
     get:
-      x-$path: internal/delivery/http/handler.PetHandler.FindPet
+      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
 
 components:
   schemas:
     Pet:
-      x-$schemas: internal/model.Pet
+      x-$schemas: github.com/zbysir/gopenapi/internal/model.Pet
       required:
         - name
         - photoUrls

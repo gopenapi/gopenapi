@@ -39,3 +39,21 @@ func TestGetFileImportPkg(t *testing.T) {
 	bs, _ := json.MarshalIndent(pkgs, " ", " ")
 	t.Logf("%s", bs)
 }
+
+func TestGetStructFunc(t *testing.T) {
+	goSrc, err := gosrc.NewGoSrcFromModFile("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewGoParse(goSrc)
+
+	pkgs, err := p.GetStructFunc("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := json.MarshalIndent(pkgs, " ", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s", bs)
+}

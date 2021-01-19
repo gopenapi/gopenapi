@@ -238,7 +238,7 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 				Val: ObjectProp{
 					Schema:      p,
 					Meta:        gd.Meta,
-					Description: gd.Doc,
+					Description: gd.FullDoc,
 					Tag:         encodeTag(f.Tag),
 				},
 			})
@@ -259,6 +259,7 @@ type GoExprWithPath struct {
 	goparse *goast.GoParse
 	expr    ast.Expr
 	path    string
+	name    string
 }
 
 // 如果类型是 结构体, 则还需要查询到子方法, 或者子成员
@@ -268,18 +269,20 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 		return nil
 	}
 
+	// 返回子成员
 	for _, field := range str.Fields.List {
 		if k == field.Names[0].Name {
 			return &GoExprWithPath{
 				goparse: g.goparse,
 				expr:    field.Type,
 				path:    g.path,
+				name:    k,
 			}
 		}
 	}
 
 	// 查找方法
-	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.path), str)
+	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.path), g.name)
 	if err != nil {
 		return nil
 	}
@@ -296,6 +299,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 		goparse: g.goparse,
 		expr:    fun.Type,
 		path:    g.path,
+		name:    k,
 	}
 }
 
