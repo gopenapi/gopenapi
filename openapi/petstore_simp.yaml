@@ -50,61 +50,13 @@ paths:
       operationId: getPetById
       security:
         - api_key: []
-    post:
-      tags:
-        - pet
-      summary: Updates a pet in the store with form data
-      operationId: updatePetWithForm
-      parameters:
-        - name: petId
-          in: path
-          description: ID of pet that needs to be updated
-          required: true
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              properties:
-                name:
-                  type: string
-                  description: Updated name of the pet
-                status:
-                  type: string
-                  description: Updated status of the pet
-      responses:
-        405:
-          description: Invalid input
-          content: {}
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
 
 components:
   schemas:
     Category:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-      xml:
-        name: Category
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Category
     Tag:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-      xml:
-        name: Tag
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Tag
     Pet:
       x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
       required:
