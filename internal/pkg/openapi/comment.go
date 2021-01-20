@@ -1,13 +1,14 @@
 package openapi
 
 import (
+	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
 	"gopkg.in/yaml.v2"
 	"regexp"
 	"strings"
 )
 
 // 处理 go 注释为元数据
-
+// 这个值是js脚本的参数, 故需要正确的被json序列化.
 type GoDoc struct {
 	// FullDoc 是整个注释(除去变量部分)
 	FullDoc string `json:"doc"`
@@ -18,7 +19,9 @@ type GoDoc struct {
 	Description string `json:"description"`
 
 	// Meta 是变量部分, 应该使用json序列化后(给js脚本)使用
-	Meta JsonItems `json:"meta"`
+	Meta jsonordered.MapSlice `json:"meta"`
+
+	Schema Schema `json:"schema,omitempty"`
 }
 
 // parseGoDoc 将注释转为 纯注释文本 和 支持json序列化的Meta.
@@ -32,6 +35,7 @@ type GoDoc struct {
 //
 func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoDoc, error) {
 	// 逐行扫描
+	// 获取doc或者meta
 	lines := strings.Split(doc, "\n")
 	startIndent := 0
 	open := false

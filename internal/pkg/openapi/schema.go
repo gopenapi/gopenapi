@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zbysir/gopenapi/internal/pkg/goast"
+	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
 	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"sort"
@@ -14,7 +15,7 @@ type ObjectSchema struct {
 
 	Type string `json:"type"`
 
-	Properties JsonItems `json:"properties"`
+	Properties jsonordered.MapSlice `json:"properties"`
 }
 
 func (o *ObjectSchema) _schema() {}
@@ -23,54 +24,45 @@ func (a *ObjectSchema) GetType() string {
 	return a.Type
 }
 
+// ObjectProp 对象成员
 type ObjectProp struct {
 	Schema
-	// ref 是自动获取到的ref, 就算ref存在下方的其他字段也会存在, 所以你可以选择是否使用ref.
-	//Ref         string            `json:"$ref,omitempty"`
-	//Type        string            `json:"type"`
-	//Format      string            `json:"format"`
-
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+	Example     interface{}          `json:"example,omitempty"`
 }
 
 // 对于嵌套了Interface的结构体, json不支持嵌入式序列化, 故出此下策.
 type ObjectPropObj struct {
 	*ObjectSchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+	Example     interface{}          `json:"example,omitempty"`
 }
 
 type ObjectPropArray struct {
 	*ArraySchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+	Example     interface{}          `json:"example,omitempty"`
 }
 
 type ObjectPropIdent struct {
 	*IdentSchema
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+	Example     interface{}          `json:"example,omitempty"`
 }
 
 type ObjectPropNil struct {
-	Meta        JsonItems `json:"meta,omitempty"`
-	Description string    `json:"description"`
-
-	Tag     map[string]string `json:"tag,omitempty"`
-	Example interface{}       `json:"example,omitempty"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+	Example     interface{}          `json:"example,omitempty"`
 }
 
 func (o ObjectProp) MarshalJSON() ([]byte, error) {
@@ -161,9 +153,8 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
 		if is, t := IsBaseType(s.Name); is {
 			return &IdentSchema{
-				Type:    t,
-				Default: "",
-				Enum:    nil,
+				Type: t,
+				Enum: nil,
 			}, nil
 		}
 		// 获取当前包下的结构体
@@ -220,7 +211,7 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 
 		return &NilSchema{}, nil
 	case *ast.StructType:
-		var props JsonItems
+		var props jsonordered.MapSlice
 
 		for _, f := range s.Fields.List {
 			p, err := o.goAstToSchema(f.Type, exprInFile)
@@ -233,7 +224,7 @@ func (o *OpenApi) goAstToSchema(expr ast.Expr, exprInFile string) (Schema, error
 				return nil, err
 			}
 
-			props = append(props, Item{
+			props = append(props, jsonordered.MapItem{
 				Key: f.Names[0].Name,
 				Val: ObjectProp{
 					Schema:      p,
@@ -338,13 +329,13 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 
 		sort.Strings(keys)
 
-		var props JsonItems
+		var props jsonordered.MapSlice
 		for _, key := range keys {
 			p, err := o.anyToSchema(s[key])
 			if err != nil {
 				return nil, err
 			}
-			props = append(props, Item{
+			props = append(props, jsonordered.MapItem{
 				Key: key,
 				Val: ObjectProp{
 					Schema:      p,
@@ -362,15 +353,13 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 		}, nil
 	case string:
 		return &IdentSchema{
-			Type:    "string",
-			Default: "",
-			Enum:    nil,
+			Type: "string",
+			Enum: nil,
 		}, nil
 	case int64, int:
 		return &IdentSchema{
-			Type:    "int",
-			Default: 0,
-			Enum:    nil,
+			Type: "int",
+			Enum: nil,
 		}, nil
 	case nil:
 		return &ObjectSchema{

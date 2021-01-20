@@ -3,7 +3,6 @@ package goast
 import (
 	"fmt"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
-	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -14,11 +13,15 @@ import (
 // - doc
 // - struct
 type GoParse struct {
-	gosrc *gosrc.GoSrc
+	gosrc    *gosrc.GoSrc
+	parseAll *parseAll
 }
 
 func NewGoParse(gosrc *gosrc.GoSrc) *GoParse {
-	return &GoParse{gosrc: gosrc}
+	return &GoParse{
+		gosrc:    gosrc,
+		parseAll: NewParseAll(),
+	}
 }
 
 func (g *GoParse) getPkgInfo(pkgDir string) (pkg *Pkg, err error) {
@@ -52,8 +55,7 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 		return
 	}
 
-	pa := NewParseAll()
-	err = pa.parse(pkgDir)
+	defs, _, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, false, err
 	}
@@ -61,7 +63,7 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 	// 如果key包含了., 说明还需要查询子方法
 	kk := strings.Split(key, ".")
 
-	def, exist = pa.def[kk[0]]
+	def, exist = defs[kk[0]]
 	if !exist {
 		return
 	}
@@ -76,9 +78,6 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 		if err != nil {
 			return nil, false, err
 		}
-
-		//
-		log.Infof("funcs %+v", funcs)
 
 		fun, exist := funcs[kk[1]]
 		if !exist {
@@ -103,8 +102,7 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 		return
 	}
 
-	pa := NewParseAll()
-	err = pa.parse(pkgDir)
+	_, let, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +111,7 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 		Values: nil,
 	}
 
-	for _, l := range pa.let {
+	for _, l := range let {
 		if id, ok := l.Type.(*ast.Ident); ok {
 			if id.Name == typ {
 				enum.Values = append(enum.Values, l.Value)
@@ -132,14 +130,13 @@ func (g *GoParse) GetStructFunc(pkgDir string, typName string) (enum map[string]
 		return
 	}
 
-	pa := NewParseAll()
-	err = pa.parse(pkgDir)
+	defs, _, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, err
 	}
 
 	enum = map[string]*Def{}
-	for _, d := range pa.def {
+	for _, d := range defs {
 		switch d.Type.(type) {
 		case *ast.FuncType:
 			if len(d.FuncRecv.List) != 0 {

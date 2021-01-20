@@ -64,22 +64,138 @@ func TestCompleteOpenapi(t *testing.T) {
 		t.Fatal(err)
 	}
 	dest, err := openAPi.CompleteYaml(`
+openapi: 3.0.1
+info:
+  title: Swagger Petstore
+  description: 'This is a sample server Petstore server.  You can find out more about     Swagger
+    at [http://swagger.io](http://swagger.io) or on [irc.freenode.net, #swagger](http://swagger.io/irc/).      For
+    this sample, you can use the api key "special-key" to test the authorization     filters.'
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: apiteam@swagger.io
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.0
+externalDocs:
+  description: Find out more about Swagger
+  url: http://swagger.io
+servers:
+  - url: https://petstore.swagger.io/v2
+  - url: http://petstore.swagger.io/v2
+
+tags:
+  - name: pet
+    description: Everything about your Pets
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+  - name: store
+    description: Access to Petstore orders
+  - name: user
+    description: Operations about user
+    externalDocs:
+      description: Find out more about our store
+      url: http://swagger.io
+
 paths:
   /pet/findByStatus:
     get:
       x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
+      tags:
+        - pet
+      security:
+        - petstore_auth:
+            - write:pets
+            - read:pets
+  /pet/{petId}:
+    get:
+      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.GetPet
+      tags:
+        - pet
+      operationId: getPetById
+      security:
+        - api_key: []
+    post:
+      tags:
+        - pet
+      summary: Updates a pet in the store with form data
+      operationId: updatePetWithForm
+      parameters:
+        - name: petId
+          in: path
+          description: ID of pet that needs to be updated
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: Updated name of the pet
+                status:
+                  type: string
+                  description: Updated status of the pet
+      responses:
+        405:
+          description: Invalid input
+          content: {}
+      security:
+        - petstore_auth:
+            - write:pets
+            - read:pets
 
 components:
   schemas:
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+      xml:
+        name: Category
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+      xml:
+        name: Tag
     Pet:
-      x-$schemas: github.com/zbysir/gopenapi/internal/model.Pet
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
       required:
         - name
         - photoUrls
+
+  securitySchemes:
+    petstore_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: http://petstore.swagger.io/oauth/dialog
+          scopes:
+            write:pets: modify pets in your account
+            read:pets: read your pets
+    api_key:
+      type: apiKey
+      name: api_key
+      in: header
 `)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	ioutil.WriteFile("TestConfig.yaml", []byte(dest), os.ModePerm)
 
 	t.Logf("%s", dest)
 }
@@ -211,13 +327,12 @@ var config = {
 
 }
 
-func TestParseDoc(t *testing.T) {
+func TestGetGoDocForFun(t *testing.T) {
 	openAPi, err := NewOpenApi("../../../go.mod")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// internal/delivery/http/handler.PetHandler.FindPet
 	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus")
 	if err != nil {
 		return
@@ -232,7 +347,27 @@ func TestParseDoc(t *testing.T) {
 	t.Logf("%s", bs)
 }
 
-func TestJson(t *testing.T) {
+func TestGetGoDocForStruct(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/model.Pet")
+	if err != nil {
+		return
+	}
+	if !exist {
+		t.Fatal("not exist")
+	}
+	bs, err := json.MarshalIndent(d, "  ", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s", bs)
+}
+
+func TestJsonObjectProp(t *testing.T) {
 	x := ObjectProp{
 		Meta:        nil,
 		Description: "1111",
@@ -249,4 +384,18 @@ func TestJson(t *testing.T) {
 
 	bs, err := json.MarshalIndent(&x, " ", " ")
 	t.Logf("%s %v", bs, err)
+}
+
+func TestYaml(t *testing.T) {
+	i := []yaml.MapItem{}
+
+	// 不支持根不是对象的yaml
+	err := yaml.Unmarshal([]byte(`
+- 1
+`), &i)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("%+v", i)
 }

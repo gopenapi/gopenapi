@@ -1,15 +1,19 @@
 package openapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
+	"github.com/dop251/goja"
 	"github.com/zbysir/gopenapi/internal/pkg/goast"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"github.com/zbysir/gopenapi/internal/pkg/js"
+	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
+	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"gopkg.in/yaml.v2"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -19,13 +23,89 @@ type OpenApi struct {
 	JsCode string
 }
 
+var defJsConfig = `
+
+// {type, properties}
+function pSchema(s){
+  if (s.properties){
+    var p ={}
+	  Object.keys(s.properties).forEach(function (key) {  
+		var v = s.properties[key]
+		var name = key
+	
+		if (v.tag) {
+			if (v.tag.json){
+				name = v.tag.json
+			}
+			delete(v['tag'])
+		}
+		
+		p[name] =  pSchema(v)
+	  })
+	  
+	  s.properties = p
+  }
+  
+  if (s.items){
+    s.items = pSchema(s.items)
+  }
+
+  return s
+}
+
+  var config = {
+      filter: function(key, value){
+        if (key==='x-$path'){
+          var responses = {}
+          Object.keys(value.meta.resp).forEach(function (k){
+            var v = value.meta.resp[k]
+            responses[k] = {
+              description: v.desc || 'success',
+              content: {
+                'application/json':{
+                  schema: pSchema(v.schema),
+                }
+              }
+            }
+          })
+          return {
+            parameters: value.meta.params.map(function (i){
+              var x = i
+              delete(x['_from'])
+              if (x.tag) {
+                if (x.tag.form){
+                  x.name = x.tag.form
+                }
+                delete(x['tag'])
+              }
+              delete(x['meta'])
+              delete(x['doc'])
+              if (!x.in){
+                x.in = 'query'
+              }
+
+              return x
+            }),
+            responses: responses
+          }
+        }
+        if (key==='x-$schema'){
+          return pSchema(value.schema)
+        }
+
+        return value
+      }
+    }
+
+`
+
 func NewOpenApi(gomodFile string) (*OpenApi, error) {
 	goSrc, err := gosrc.NewGoSrcFromModFile(gomodFile)
 	if err != nil {
 		return nil, err
 	}
 	p := goast.NewGoParse(goSrc)
-	return &OpenApi{goparse: p}, nil
+	return &OpenApi{goparse: p, JsCode: defJsConfig}, nil
 }
 
 // PkgGetter 实现了 GetMember 接口, 用来给js解析器执行 member 语法.
@@ -164,24 +244,76 @@ func IsBaseType(t string) (is bool, openApiType string) {
 	return
 }
 
-func (o *OpenApi) fullCommentMetaToJson(i []yaml.MapItem, filename string) JsonItems {
+func (o *OpenApi) fullCommentMetaToJson(i []yaml.MapItem, filename string) jsonordered.MapSlice {
 	r := o.fullCommentMeta(i, filename)
 	return yamlItemToJsonItem(r)
 }
 
-func yamlItemToJsonItem(i []yaml.MapItem) JsonItems {
-	r := make(JsonItems, len(i))
+// 这里没有case []interface, 可能会出现问题
+func yamlItemToJsonItem(i []yaml.MapItem) []jsonordered.MapItem {
+	r := make([]jsonordered.MapItem, len(i))
 	for i, item := range i {
 		switch v := item.Value.(type) {
 		case []yaml.MapItem:
-			r[i] = Item{
+			r[i] = jsonordered.MapItem{
 				Key: item.Key.(string),
 				Val: yamlItemToJsonItem(v),
 			}
 		default:
-			r[i] = Item{
+			r[i] = jsonordered.MapItem{
 				Key: item.Key.(string),
 				Val: v,
+			}
+		}
+	}
+	return r
+}
+
+func innerJsonToYaml(i interface{}) interface{} {
+	switch i := i.(type) {
+	case []jsonordered.MapItem:
+		x := make([]yaml.MapItem, len(i))
+		for index, item := range i {
+			x[index] = yaml.MapItem{
+				Key:   item.Key,
+				Value: innerJsonToYaml(item.Val),
+			}
+		}
+
+		return x
+	case jsonordered.MapSlice:
+		x := make([]yaml.MapItem, len(i))
+		for index, item := range i {
+			x[index] = yaml.MapItem{
+				Key:   item.Key,
+				Value: innerJsonToYaml(item.Val),
+			}
+		}
+		return x
+	case []interface{}:
+		x := make([]interface{}, len(i))
+		for index, item := range i {
+			x[index] = innerJsonToYaml(item)
+		}
+		return x
+	}
+
+	return i
+}
+
+func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
+	r := make([]yaml.MapItem, len(i))
+	for i, item := range i {
+		switch v := item.Val.(type) {
+		case []jsonordered.MapItem, jsonordered.MapSlice, []interface{}:
+			r[i] = yaml.MapItem{
+				Key:   item.Key,
+				Value: innerJsonToYaml(v),
+			}
+		default:
+			r[i] = yaml.MapItem{
+				Key:   item.Key,
+				Value: v,
 			}
 		}
 	}
@@ -262,9 +394,18 @@ func (o *OpenApi) GetGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) 
 	if !exist {
 		return
 	}
+
 	g, err = o.parseGoDoc(def.Doc.Text(), def.File)
 	if err != nil {
 		return
+	}
+
+	// 如果是一个结构体, 则自动转为schema
+	if _, ok := def.Type.(*ast.StructType); ok {
+		g.Schema, err = o.goAstToSchema(def.Type, def.File)
+		if err != nil {
+			return
+		}
 	}
 
 	return
@@ -297,12 +438,12 @@ type XData struct {
 // 从go结构体能读出的数据, 用于parameters
 type ParamsItem struct {
 	// From 表示此item来至那, 如 go
-	From   string            `json:"_from"`
-	Name   string            `json:"name"`
-	Tag    map[string]string `json:"tag"`
-	Doc    string            `json:"doc"`
-	Meta   JsonItems         `json:"meta,omitempty"`
-	Schema Schema            `json:"schema"`
+	From   string               `json:"_from"`
+	Name   string               `json:"name"`
+	Tag    map[string]string    `json:"tag"`
+	Doc    string               `json:"doc"`
+	Meta   jsonordered.MapSlice `json:"meta,omitempty"`
+	Schema Schema               `json:"schema"`
 }
 
 func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {
@@ -376,44 +517,6 @@ func (a *ArraySchema) GetType() string {
 	return a.Type
 }
 
-type Item struct {
-	Key string
-	Val interface{}
-}
-
-// JsonItems 用于实现对struct的json有序序列化
-// 用于生成schemas.
-type JsonItems []Item
-
-func (j JsonItems) MarshalJSON() ([]byte, error) {
-	var bs = []byte(`{}`)
-	var err error
-	for _, item := range j {
-		itembs, err := json.Marshal(item.Val)
-		if err != nil {
-			return nil, err
-		}
-
-		//itembs:=[]byte(`{"a":1}`)
-		bs, err = jsonparser.Set(bs, itembs, item.Key)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return bs, err
-}
-
-func (j JsonItems) Get(key string) (v interface{}, exist bool) {
-	for _, item := range j {
-		if item.Key == key {
-			return item.Val, true
-		}
-	}
-
-	return nil, false
-}
-
 // TODO 使用js脚本让用户可以自己写逻辑
 // 将元数据转成openapi.params
 func xDataToParams(t *XData, useTag string) []yaml.MapItem {
@@ -474,7 +577,6 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 }
 
 // 完成openapi, 入口
-// TODO
 func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 	// 读取openapi
 	var kv []yaml.MapItem
@@ -497,12 +599,39 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 	dest = string(out)
 	return
 }
-func (o *OpenApi) runConfigJs(in []byte) (jsBs []byte, err error) {
-	return in, err
+func (o *OpenApi) runConfigJs(key string, in []byte) (jsBs []byte, err error) {
+	code := fmt.Sprintf(`%s; var r = config.filter("%s", %s); JSON.stringify(r)`, o.JsCode, key, in)
+
+	gj := goja.New()
+
+	//log.Infof("%s", code)
+	v, err := gj.RunScript("js", code)
+	if err != nil {
+		err = fmt.Errorf("RunScript err: %w", err)
+		return
+	}
+
+	//log.Infof("%T %v", v.Export(),v.Export())
+	exp := v.Export()
+	if exp == nil {
+		return []byte(`{}`), nil
+	}
+	s := v.Export().(string)
+
+	return []byte(s), err
 }
 func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error) {
 	for _, item := range in {
-		key := item.Key.(string)
+		key := ""
+
+		switch k := item.Key.(type) {
+		case string:
+			key = k
+		case int:
+			key = strconv.Itoa(k)
+		default:
+			panic(fmt.Sprintf("uncase Type of itemKey: %T", item.Key))
+		}
 
 		// x-$path
 		if strings.HasPrefix(key, "x-$") {
@@ -524,22 +653,25 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error
 					return nil, err
 				}
 
-				outBs, err := o.runConfigJs(inbs)
+				outBs, err := o.runConfigJs(key, inbs)
 				if err != nil {
 					return nil, err
 				}
 
-				var outI interface{}
+				// 让json有序
+				var outI jsonordered.MapSlice
 
 				err = json.Unmarshal(outBs, &outI)
 				if err != nil {
 					return nil, err
 				}
 
-				out = append(out, yaml.MapItem{
-					Key:   key,
-					Value: outI,
-				})
+				bsxxx, _ := json.Marshal(outI)
+				if !bytes.Equal(bsxxx, outBs) {
+					log.Errorf("Unexpected result on Marshal, want: %s, got: %s", outBs, bsxxx)
+				}
+				x := jsonItemToYamlItem(outI)
+				out = append(out, x...)
 				continue
 			}
 		}

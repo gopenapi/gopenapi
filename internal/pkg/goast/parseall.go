@@ -7,20 +7,16 @@ import (
 	"go/token"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // 存储所有类型定义和变量/常量
 type parseAll struct {
-	// 所有的类型定义(包括方法)
-	def map[string]*Def
-	// 所有的变量/常量
-	let []*Let
+	cache sync.Map
 }
 
 func NewParseAll() *parseAll {
 	return &parseAll{
-		def: map[string]*Def{},
-		let: nil,
 	}
 }
 
@@ -48,12 +44,39 @@ type Let struct {
 	Doc  *ast.CommentGroup
 }
 
-func (p *parseAll) parse(path string) (err error) {
+type cacheStruct struct {
+	defs map[string]*Def
+	let  []*Let
+}
+
+// 参数
+//  path: 包文件地址
+//
+// 返回:
+//	defs: 所有的类型定义(包括方法)
+//	let: 所有的变量/常量
+func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err error) {
+	v, ok := p.cache.Load(path)
+	if ok {
+		s := v.(*cacheStruct)
+		return s.defs, s.let, nil
+	}
+	defer func() {
+		if err != nil {
+			p.cache.Store(path, &cacheStruct{
+				defs: defs,
+				let:  let,
+			})
+		}
+	}()
+
 	fs := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fs, path, nil, parser.ParseComments|parser.AllErrors)
 	if err != nil {
 		return
 	}
+
+	defs = map[string]*Def{}
 
 	for _, pkg := range pkgs {
 		for filePath, file := range pkg.Files {
@@ -71,7 +94,7 @@ func (p *parseAll) parse(path string) (err error) {
 								spec.Doc = genDeclDoc
 							}
 
-							p.def[spec.Name.Name] = &Def{
+							defs[spec.Name.Name] = &Def{
 								Name: spec.Name.Name,
 								Type: spec.Type,
 								Doc:  spec.Doc,
@@ -83,7 +106,7 @@ func (p *parseAll) parse(path string) (err error) {
 								if len(spec.Values) > i {
 									value = expr2Interface(spec.Values[i])
 								}
-								p.let = append(p.let, &Let{
+								let = append(let, &Let{
 									Value: value,
 									Type:  spec.Type,
 									Name:  name.Name,
@@ -98,7 +121,7 @@ func (p *parseAll) parse(path string) (err error) {
 						}
 					}
 				case *ast.FuncDecl:
-					p.def[decl.Name.Name] = &Def{
+					defs[decl.Name.Name] = &Def{
 						Name:     decl.Name.Name,
 						Type:     decl.Type,
 						Doc:      decl.Doc,

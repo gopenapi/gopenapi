@@ -30,7 +30,7 @@ type PetHandler struct {
 // Multiple status values can be provided with comma separated strings
 //
 // $:
-//   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
+//   js-params: "[...params(model.FindPetByStatusParams)]"
 //   js-resp: |
 //     {200: {desc: "成功", schema: schema([model.Pet])},
 //       401: {desc: "没权限", schema: schema({msg: "没权限"})}, }
@@ -56,8 +56,9 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 //
 // Returns a single pet
 // $:
-//    js-params: "params(model.GetPetById)"
-//    js-resp: "{200: {schema: schema(model.Pet)}}"
+//    js-params: "[{name: 'petId', required: true, in: 'path', schema: {type: 'string'}}]"
+//    js-resp: |
+//     {200: {schema: schema(model.Pet)}, 404: {desc: "Not Found Pet", schema: schema({msg: "Not Found Pet"})}, }
 //
 func (h *PetHandler) GetPet(ctx *gin.Context) {
 	var p model.GetPetById
