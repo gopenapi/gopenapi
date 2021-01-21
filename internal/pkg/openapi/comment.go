@@ -123,6 +123,7 @@ func combinObj(o ...[]yaml.MapItem) []yaml.MapItem {
 	return r
 }
 
+// parseYaml: 处理yaml中的js表达式
 func (o *OpenApi) parseYaml(y string, filepath string) ([]yaml.MapItem, error) {
 	var i []yaml.MapItem
 	err := yaml.Unmarshal([]byte(y),

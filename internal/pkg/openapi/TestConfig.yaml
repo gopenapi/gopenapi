@@ -53,40 +53,7 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                      description: Id is Pet ID
-                    category:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                        name:
-                          type: string
-                      description: Category Is pet category
-                    name:
-                      type: string
-                      description: Name is Pet name
-                    tags:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          id:
-                            type: integer
-                          name:
-                            type: string
-                      description: Tag is Pet Tag
-                    status:
-                      type: string
-                      default: available
-                      enum:
-                      - available
-                      - pending
-                      - sold
-                      description: PetStatus
+                  $ref: '#/components/schemas/Pet'
         "401":
           description: 没权限
           content:
@@ -117,40 +84,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    description: Id is Pet ID
-                  category:
-                    type: object
-                    properties:
-                      id:
-                        type: integer
-                      name:
-                        type: string
-                    description: Category Is pet category
-                  name:
-                    type: string
-                    description: Name is Pet name
-                  tags:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                        name:
-                          type: string
-                    description: Tag is Pet Tag
-                  status:
-                    type: string
-                    default: available
-                    enum:
-                    - available
-                    - pending
-                    - sold
-                    description: PetStatus
+                $ref: '#/components/schemas/Pet'
         "404":
           description: Not Found Pet
           content:

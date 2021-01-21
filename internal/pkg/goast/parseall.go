@@ -25,6 +25,8 @@ func NewParseAll() *parseAll {
 //  类型
 type Def struct {
 	Name string
+	// Key 是 唯一标识. e.g. github.com/zbysir/gopenapi/internal/model.Tag
+	Key  string
 	Type ast.Expr `json:"-"`
 
 	// 只有方法定义有这个值
@@ -95,10 +97,12 @@ func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err err
 							}
 
 							defs[spec.Name.Name] = &Def{
-								Name: spec.Name.Name,
-								Type: spec.Type,
-								Doc:  spec.Doc,
-								File: filePath,
+								Name:     spec.Name.Name,
+								Key:      path + "." + spec.Name.Name,
+								Type:     spec.Type,
+								FuncRecv: nil,
+								File:     filePath,
+								Doc:      spec.Doc,
 							}
 						case *ast.ValueSpec:
 							for i, name := range spec.Names {
@@ -122,8 +126,11 @@ func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err err
 					}
 				case *ast.FuncDecl:
 					defs[decl.Name.Name] = &Def{
-						Name:     decl.Name.Name,
-						Type:     decl.Type,
+						Name: decl.Name.Name,
+						Type: decl.Type,
+						// TODO add decl.Recv name to key
+						// path + "." + {Recv.name} + decl.Name.Name
+						Key:      path + "." + decl.Name.Name,
 						Doc:      decl.Doc,
 						FuncRecv: decl.Recv,
 						File:     filePath,

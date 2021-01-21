@@ -57,7 +57,7 @@ func TestRunJsExpress(t *testing.T) {
 	t.Logf("%s", bs)
 }
 
-// TODO CompleteOpenapi
+// 入口
 func TestCompleteOpenapi(t *testing.T) {
 	openAPi, err := NewOpenApi("../../../go.mod")
 	if err != nil {
@@ -211,7 +211,7 @@ func TestGetGoDocForFun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus")
+	d, exist, err := openAPi.getGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus")
 	if err != nil {
 		return
 	}
@@ -231,7 +231,7 @@ func TestGetGoDocForStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.GetGoDoc("github.com/zbysir/gopenapi/internal/model.Pet")
+	d, exist, err := openAPi.getGoDoc("github.com/zbysir/gopenapi/internal/model.Pet")
 	if err != nil {
 		return
 	}
@@ -276,4 +276,39 @@ func TestYaml(t *testing.T) {
 	}
 
 	t.Logf("%+v", i)
+}
+
+func TestWorkSchemas(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kv []yaml.MapItem
+
+	err = yaml.Unmarshal([]byte(`
+
+components:
+  schemas:
+    Category:
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Category
+    Tag:
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Tag
+    Pet:
+      x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
+      required:
+        - name
+        - photoUrls
+
+`), &kv)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	err = openAPi.walkSchemas(kv, []string{"components", "schemas", "*", "x-$schema"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("%+v", openAPi.schemas)
 }

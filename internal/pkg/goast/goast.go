@@ -69,6 +69,8 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 	}
 
 	def.File, err = g.gosrc.GetPkgPath(def.File)
+	def.Key, err = g.gosrc.GetPkgPath(def.Key)
+
 	if err != nil {
 		return nil, false, err
 	}

@@ -20,7 +20,12 @@ import (
 type OpenApi struct {
 	goparse *goast.GoParse
 
-	JsCode string
+	// js config
+	JsConfig string
+
+	// schemas 存放需要refs的schemas
+	// github.com/zbysir/gopenapi/internal/model.Category => Category
+	schemas map[string]string
 }
 
 var defJsConfig = `
@@ -105,7 +110,11 @@ func NewOpenApi(gomodFile string) (*OpenApi, error) {
 		return nil, err
 	}
 	p := goast.NewGoParse(goSrc)
-	return &OpenApi{goparse: p, JsCode: defJsConfig}, nil
+	return &OpenApi{
+		goparse:  p,
+		JsConfig: defJsConfig,
+		schemas:  map[string]string{},
+	}, nil
 }
 
 // PkgGetter 实现了 GetMember 接口, 用来给js解析器执行 member 语法.
@@ -127,6 +136,8 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		goparse: p.goparse,
 		expr:    def.Type,
 		path:    def.File,
+		name:    def.Name,
+		key:     def.Key,
 	}
 }
 
@@ -143,7 +154,7 @@ func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
 func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, error) {
 	//return nil,nil
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
-		// builtin func:
+		// builtin function:
 		// - params
 		// - schema
 		if name == "params" {
@@ -203,7 +214,12 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 				fmt.Printf("[err] %v", err)
 				return nil
 			}
-			schema, err := o.goAstToSchema(f.Type, ep.path)
+			schema, err := o.goAstToSchema(&Expr{
+				expr:       f.Type,
+				exprInFile: ep.path,
+				key:        "",
+			})
+			//schema, err := o.goAstToSchema(f.Type, ep.path)
 			if err != nil {
 				fmt.Printf("[err] %v\n", err)
 				continue
@@ -384,7 +400,8 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 }
 
 // 入口
-func (o *OpenApi) GetGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) {
+// pathAndKey: e.g. github.com/zbysir/gopenapi/internal/model.Tag
+func (o *OpenApi) getGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)
 
 	def, exist, err := o.goparse.GetDef(p, k)
@@ -402,7 +419,12 @@ func (o *OpenApi) GetGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) 
 
 	// 如果是一个结构体, 则自动转为schema
 	if _, ok := def.Type.(*ast.StructType); ok {
-		g.Schema, err = o.goAstToSchema(def.Type, def.File)
+		g.Schema, err = o.goAstToSchema(&Expr{
+			expr:       def.Type,
+			exprInFile: def.File,
+			key:        def.Key,
+		})
+		//g.Schema, err = o.goAstToSchema(def.Type, def.File)
 		if err != nil {
 			return
 		}
@@ -508,13 +530,22 @@ type Schema interface {
 }
 
 type ArraySchema struct {
-	Ref   string `json:"$ref,omitempty"`
 	Type  string `json:"type"`
 	Items Schema `json:"items"`
 }
 
 func (a *ArraySchema) GetType() string {
 	return a.Type
+}
+
+type RefSchema struct {
+	Ref string `json:"$ref"`
+}
+
+func (r *RefSchema) _schema() {}
+
+func (r *RefSchema) GetType() string {
+	return ""
 }
 
 // TODO 使用js脚本让用户可以自己写逻辑
@@ -586,7 +617,12 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 		return "", err
 	}
 
-	newKv, err := o.completeYaml(kv)
+	err = o.walkSchemas(kv, []string{"components", "schemas", "*", "x-$schema"}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	newKv, err := o.completeYaml(kv, []string{})
 	if err != nil {
 		return
 	}
@@ -599,8 +635,47 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 	dest = string(out)
 	return
 }
-func (o *OpenApi) runConfigJs(key string, in []byte) (jsBs []byte, err error) {
-	code := fmt.Sprintf(`%s; var r = config.filter("%s", %s); JSON.stringify(r)`, o.JsCode, key, in)
+
+func (o *OpenApi) walkSchemas(kv []yaml.MapItem, wantKeys []string, walkKeys []string) (err error) {
+	for _, item := range kv {
+		key := ""
+
+		switch k := item.Key.(type) {
+		case string:
+			key = k
+		case int:
+			key = strconv.Itoa(k)
+		default:
+			panic(fmt.Sprintf("uncase Type of itemKey: %T", item.Key))
+		}
+
+		if key == wantKeys[0] || wantKeys[0] == "*" {
+			if len(wantKeys) == 1 {
+				// 找到了
+				schemaKey := strings.Join(walkKeys[:len(walkKeys)], "/")
+				// TODO 友好错误提示
+				v := item.Value.(string)
+
+				o.schemas[v] = schemaKey
+				break
+			}
+
+			switch val := item.Value.(type) {
+			case []yaml.MapItem:
+				err = o.walkSchemas(val, wantKeys[1:], append(walkKeys, key))
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return
+}
+
+func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs []byte, err error) {
+	krBs, _ := json.Marshal(keyRouter)
+	code := fmt.Sprintf(`%s; var r = config.filter("%s", %s, %s); JSON.stringify(r)`, o.JsConfig, key, in, krBs)
 
 	gj := goja.New()
 
@@ -620,7 +695,20 @@ func (o *OpenApi) runConfigJs(key string, in []byte) (jsBs []byte, err error) {
 
 	return []byte(s), err
 }
-func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error) {
+
+type keyRouter []string
+
+// IsKey 返回keyRouter路径中回退 skip 步之后的元素是否是 key
+func (k keyRouter) IsKey(key string, skip int) bool {
+	if len(k) <= skip {
+		return false
+	}
+
+	return k[len(k)-skip] == key
+}
+
+// keyRoute: key的路径
+func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yaml.MapItem, err error) {
 	for _, item := range in {
 		key := ""
 
@@ -633,10 +721,10 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error
 			panic(fmt.Sprintf("uncase Type of itemKey: %T", item.Key))
 		}
 
-		// x-$path
+		// x-$xxx 语法, 将调用go注释
 		if strings.HasPrefix(key, "x-$") {
 			if v, ok := item.Value.(string); ok {
-				g, exist, err := o.GetGoDoc(v)
+				g, exist, err := o.getGoDoc(v)
 				if err != nil {
 					return nil, err
 				}
@@ -653,7 +741,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error
 					return nil, err
 				}
 
-				outBs, err := o.runConfigJs(key, inbs)
+				outBs, err := o.runConfigJs(key, inbs, keyRouter)
 				if err != nil {
 					return nil, err
 				}
@@ -677,8 +765,10 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem) (out []yaml.MapItem, err error
 		}
 
 		switch v := item.Value.(type) {
+		// TODO 注意是否有[]interface类型
+		//case []interface{}:
 		case []yaml.MapItem:
-			completeYaml, err := o.completeYaml(v)
+			completeYaml, err := o.completeYaml(v, append(keyRouter, key))
 			if err != nil {
 				return nil, err
 			}
