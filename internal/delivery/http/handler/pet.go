@@ -33,7 +33,7 @@ type PetHandler struct {
 //   js-params: "[...params(model.FindPetByStatusParams)]"
 //   js-resp: |
 //     {200: {desc: "成功", schema: schema([model.Pet])},
-//       401: {desc: "没权限", schema: schema({msg: "没权限"})}, }
+//       401: "#/components/responses/401" }
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	var p model.FindPetByStatusParams

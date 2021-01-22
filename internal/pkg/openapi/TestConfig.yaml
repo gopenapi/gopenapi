@@ -55,15 +55,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Pet'
         "401":
-          description: 没权限
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  msg:
-                    type: string
-                    example: 没权限
+          $ref: '#/components/responses/401'
       tags:
       - pet
       security:
@@ -154,6 +146,27 @@ components:
       required:
       - name
       - photoUrls
+  responses:
+    400:
+      description: Invalid Params
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: 参数不正确
+    401:
+      description: 没权限
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: 没权限
   securitySchemes:
     petstore_auth:
       type: oauth2

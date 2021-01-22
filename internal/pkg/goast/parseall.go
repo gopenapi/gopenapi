@@ -24,6 +24,7 @@ func NewParseAll() *parseAll {
 //  方法
 //  类型
 type Def struct {
+	// Name 是 `type Tag struct{}` 中的 Tag
 	Name string
 	// Key 是 唯一标识. e.g. github.com/zbysir/gopenapi/internal/model.Tag
 	Key  string
@@ -96,9 +97,10 @@ func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err err
 								spec.Doc = genDeclDoc
 							}
 
-							defs[spec.Name.Name] = &Def{
-								Name:     spec.Name.Name,
-								Key:      path + "." + spec.Name.Name,
+							name := spec.Name.Name
+							defs[name] = &Def{
+								Name:     name,
+								Key:      path + "." + name,
 								Type:     spec.Type,
 								FuncRecv: nil,
 								File:     filePath,

@@ -132,23 +132,82 @@ func (n NilSchema) GetType() string {
 
 func (a *ArraySchema) _schema() {}
 
-type Expr struct{
-	expr ast.Expr
-	exprInFile string
-	key string
+//type Expr struct {
+//	// 表达式, 如 model.Pet
+//	expr ast.Expr
+//	// 当前表达式所在的文件, 当expr是 model.Pet 时, 会根据当前文件的import找到model包下的Pet结构体.
+//	exprInFile string
+//	key string
+//}
+
+func (expr *GoExprWithPath) Key() (string, error) {
+	if expr.key != "" {
+		return expr.key, nil
+	}
+	switch s := expr.expr.(type) {
+	case *ast.ArrayType:
+		// 不处理
+		// 不支持数组生成ref.
+		// 如需支持数组, 需要定义type: `type Items []Item`, 然后使用Items生成ref
+		return "", nil
+	case *ast.Ident:
+		// 标识
+		// 如果是基础类型, 则返回, 否则还需要继续递归.
+		if is, _ := IsBaseType(s.Name); is {
+			return s.Name, nil
+		}
+
+		// 当前包的结构体
+		return expr.goparse.GetPkgFile(expr.file) + "." + s.Name, nil
+	case *ast.SelectorExpr:
+		// for model.T syntax
+		pkgName := s.X.(*ast.Ident).Name
+
+		pkgs, err := expr.goparse.GetFileImportPkg(expr.file)
+		if err != nil {
+			return "", err
+		}
+
+		if pkg, ispkg := pkgs[pkgName]; ispkg {
+			return pkg.Dir + "." + s.Sel.Name, nil
+		}
+
+		return "", fmt.Errorf("can't found package: %s in file: %s", pkgName, expr.file)
+	case *ast.StarExpr:
+		expr.expr = s.X
+		return expr.Key()
+	default:
+		panic(fmt.Sprintf("uncase Type of GetExprKey: %T", expr.expr))
+	}
+
 }
+
 // goAstToSchema 将goAst转为Schema
 //
 //   expr参数是goAst
 //   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/zbysir/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
-func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
+func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
+	exprKey, err := expr.Key()
+	if err != nil {
+		err = fmt.Errorf("call Expr.Key err: %w", err)
+		return nil, err
+	}
+	log.Infof("s.key %+v", exprKey)
+	if ref, ok := o.schemas[exprKey]; ok {
+		return &RefSchema{
+			Ref: "#/" + ref,
+		}, nil
+	}
+
 	switch s := expr.expr.(type) {
 	case *ast.ArrayType:
 		// TODO key
-		schema, err := o.goAstToSchema(&Expr{
-			expr:       s.Elt,
-			exprInFile: expr.exprInFile,
-			key:        "",
+		schema, err := o.goAstToSchema(&GoExprWithPath{
+			goparse: o.goparse,
+			expr:    s.Elt,
+			file:    expr.file,
+			name:    "",
+			key:     "",
 		})
 		if err != nil {
 			return nil, err
@@ -167,8 +226,8 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 				Enum: nil,
 			}, nil
 		}
+		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgFile(expr.file), s.Name)
 		// 获取当前包下的结构体
-		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgFile(expr.exprInFile), s.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -177,10 +236,12 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 			return &NilSchema{}, nil
 		}
 
-		schema, err := o.goAstToSchema(&Expr{
-			expr:       def.Type,
-			exprInFile: def.File,
-			key:        def.Key,
+		schema, err := o.goAstToSchema(&GoExprWithPath{
+			goparse: o.goparse,
+			expr:    def.Type,
+			file:    def.File,
+			name:    def.Name,
+			key:     def.Key,
 		})
 		//schema, err := o.goAstToSchema(def.Type, def.File)
 		if err != nil {
@@ -190,7 +251,7 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 		// 如果是基础类型, 则需要获取枚举值
 		if id, ok := schema.(*IdentSchema); ok {
 			// 查找Enum
-			enum, err := o.goparse.GetEnum(o.goparse.GetPkgFile(expr.exprInFile), s.Name)
+			enum, err := o.goparse.GetEnum(o.goparse.GetPkgFile(expr.file), s.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -206,7 +267,7 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 		// for model.T syntax
 		pkgName := s.X.(*ast.Ident).Name
 
-		pkgs, err := o.goparse.GetFileImportPkg(expr.exprInFile)
+		pkgs, err := o.goparse.GetFileImportPkg(expr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -220,10 +281,12 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 				return &NilSchema{}, err
 			}
 
-			schema, err := o.goAstToSchema(&Expr{
-				expr:       str.Type,
-				exprInFile: str.File,
-				key:        "",
+			schema, err := o.goAstToSchema(&GoExprWithPath{
+				goparse: o.goparse,
+				expr:    str.Type,
+				file:    str.File,
+				name:    str.Name,
+				key:     str.Key,
 			})
 			//schema, err := o.goAstToSchema(str.Type, str.File)
 			return schema, err
@@ -234,24 +297,26 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 		var props jsonordered.MapSlice
 
 		for _, f := range s.Fields.List {
-			// TODO
-			p, err := o.goAstToSchema(&Expr{
-				expr:       f.Type,
-				exprInFile: expr.exprInFile,
-				key:        "",
+			name := f.Names[0].Name
+			p, err := o.goAstToSchema(&GoExprWithPath{
+				goparse: o.goparse,
+				expr:    f.Type,
+				file:    expr.file,
+				name:    name,
+				key:     "",
 			})
 			//p, err := o.goAstToSchema(f.Type, exprInFile)
 			if err != nil {
 				return nil, err
 			}
 
-			gd, err := o.parseGoDoc(f.Doc.Text(), expr.exprInFile)
+			gd, err := o.parseGoDoc(f.Doc.Text(), expr.file)
 			if err != nil {
 				return nil, err
 			}
 
 			props = append(props, jsonordered.MapItem{
-				Key: f.Names[0].Name,
+				Key: name,
 				Val: ObjectProp{
 					Schema:      p,
 					Meta:        gd.Meta,
@@ -275,9 +340,14 @@ func (o *OpenApi) goAstToSchema(expr *Expr) (Schema, error) {
 type GoExprWithPath struct {
 	goparse *goast.GoParse
 	expr    ast.Expr
-	path    string
-	name    string
-	key     string
+	// 文件地址
+	file string
+
+	// name 是当前表达式的字段名, 如结构体中的字段.
+	name string
+	// 当前表达式的唯一标识, 如 github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
+	// 此值有可能为空, 如 表达式是 model.Pet 时, 还无法获得key.
+	key string
 }
 
 // 如果类型是 结构体, 则还需要查询到子方法, 或者子成员
@@ -293,7 +363,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 			return &GoExprWithPath{
 				goparse: g.goparse,
 				expr:    field.Type,
-				path:    g.path,
+				file:    g.file,
 				name:    k,
 				key:     "",
 			}
@@ -301,7 +371,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 	}
 
 	// 查找方法
-	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.path), g.name)
+	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.file), g.name)
 	if err != nil {
 		return nil
 	}
@@ -316,7 +386,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 	return &GoExprWithPath{
 		goparse: g.goparse,
 		expr:    fun.Type,
-		path:    g.path,
+		file:    g.file,
 		name:    k,
 		key:     "",
 	}
@@ -326,17 +396,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 	switch s := i.(type) {
 	case *GoExprWithPath:
-		log.Infof("s.key %+v", s.key)
-		if ref, ok := o.schemas[s.key]; ok {
-			return &RefSchema{
-				Ref: "#/" + ref,
-			}, nil
-		}
-		return o.goAstToSchema(&Expr{
-			expr:       s.expr,
-			exprInFile: s.path,
-			key:        s.key,
-		})
+		return o.goAstToSchema(s)
 		//return o.goAstToSchema(s.expr, s.path)
 	case []interface{}:
 		if len(s) == 0 {

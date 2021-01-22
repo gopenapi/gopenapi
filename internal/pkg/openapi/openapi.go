@@ -64,14 +64,21 @@ function pSchema(s){
           var responses = {}
           Object.keys(value.meta.resp).forEach(function (k){
             var v = value.meta.resp[k]
-            responses[k] = {
-              description: v.desc || 'success',
-              content: {
-                'application/json':{
-                  schema: pSchema(v.schema),
-                }
-              }
-            }
+			var rsp 
+			if (typeof v == 'string'){
+				rsp = {$ref: v}
+			}else{
+				rsp = {
+				  description: v.desc || 'success',
+				  content: {
+					'application/json': {
+					  schema: pSchema(v.schema),
+					}
+				  }
+				} 
+			}
+			
+            responses[k] = rsp
           })
           return {
             parameters: value.meta.params.map(function (i){
@@ -135,7 +142,7 @@ func (p PkgGetter) GetMember(k string) interface{} {
 	return &GoExprWithPath{
 		goparse: p.goparse,
 		expr:    def.Type,
-		path:    def.File,
+		file:    def.File,
 		name:    def.Name,
 		key:     def.Key,
 	}
@@ -209,15 +216,20 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 	switch s := ep.expr.(type) {
 	case *ast.StructType:
 		for _, f := range s.Fields.List {
-			gd, err := o.parseGoDoc(f.Doc.Text(), ep.path)
+			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
 			if err != nil {
 				fmt.Printf("[err] %v", err)
 				return nil
 			}
-			schema, err := o.goAstToSchema(&Expr{
-				expr:       f.Type,
-				exprInFile: ep.path,
-				key:        "",
+
+			// 获取子字段 key
+			name := f.Names[0].Name
+			schema, err := o.goAstToSchema(&GoExprWithPath{
+				goparse: o.goparse,
+				expr:    f.Type,
+				file:    ep.file,
+				name:    name,
+				key:     "",
 			})
 			//schema, err := o.goAstToSchema(f.Type, ep.path)
 			if err != nil {
@@ -226,7 +238,7 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 			}
 			l = append(l, ParamsItem{
 				From:   "go",
-				Name:   f.Names[0].Name,
+				Name:   name,
 				Tag:    encodeTag(f.Tag),
 				Doc:    gd.FullDoc,
 				Meta:   gd.Meta,
@@ -419,11 +431,16 @@ func (o *OpenApi) getGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) 
 
 	// 如果是一个结构体, 则自动转为schema
 	if _, ok := def.Type.(*ast.StructType); ok {
-		g.Schema, err = o.goAstToSchema(&Expr{
-			expr:       def.Type,
-			exprInFile: def.File,
-			key:        def.Key,
+		//x:=o.schemas
+		//o.schemas = map[string]string{}
+		g.Schema, err = o.goAstToSchema(&GoExprWithPath{
+			goparse: o.goparse,
+			expr:    def.Type,
+			file:    def.File,
+			name:    def.Name,
+			key:     def.Key,
 		})
+		//o.schemas = x
 		//g.Schema, err = o.goAstToSchema(def.Type, def.File)
 		if err != nil {
 			return
@@ -679,7 +696,7 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 
 	gj := goja.New()
 
-	//log.Infof("%s", code)
+	log.Infof("%s", code)
 	v, err := gj.RunScript("js", code)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)

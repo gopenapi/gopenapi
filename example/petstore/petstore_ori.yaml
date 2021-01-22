@@ -124,8 +124,9 @@ paths:
                 items:
                   $ref: '#/components/schemas/Pet'
         400:
-          description: Invalid status value
-          content: {}
+          $ref: '#/components/responses/400'
+        401:
+          $ref: '#/components/responses/401'
       security:
         - petstore_auth:
             - write:pets
@@ -594,6 +595,20 @@ paths:
           description: User not found
           content: {}
 components:
+  responses:
+    400:
+      description: Invalid status value
+      content: { }
+    401:
+      description: 没权限
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: 没权限
   schemas:
     Order:
       type: object
