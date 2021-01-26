@@ -65,6 +65,10 @@ type ObjectPropNil struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
+type ObjectPropRef struct {
+	Ref string `json:"$ref"`
+}
+
 func (o ObjectProp) MarshalJSON() ([]byte, error) {
 	switch s := o.Schema.(type) {
 	case *ObjectSchema:
@@ -97,6 +101,10 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Description: o.Description,
 			Tag:         o.Tag,
 			Example:     o.Example,
+		})
+	case *RefSchema:
+		return json.Marshal(ObjectPropRef{
+			Ref: s.Ref,
 		})
 	default:
 		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
@@ -187,16 +195,17 @@ func (expr *GoExprWithPath) Key() (string, error) {
 //   expr参数是goAst
 //   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/zbysir/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
 func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
-	exprKey, err := expr.Key()
-	if err != nil {
-		err = fmt.Errorf("call Expr.Key err: %w", err)
-		return nil, err
-	}
-	log.Infof("s.key %+v", exprKey)
-	if ref, ok := o.schemas[exprKey]; ok {
-		return &RefSchema{
-			Ref: "#/" + ref,
-		}, nil
+	if !expr.noRef{
+		exprKey, err := expr.Key()
+		if err != nil {
+			err = fmt.Errorf("call Expr.Key err: %w", err)
+			return nil, err
+		}
+		if ref, ok := o.schemas[exprKey]; ok {
+			return &RefSchema{
+				Ref: "#/" + ref,
+			}, nil
+		}
 	}
 
 	switch s := expr.expr.(type) {
@@ -348,6 +357,9 @@ type GoExprWithPath struct {
 	// 当前表达式的唯一标识, 如 github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
 	// 此值有可能为空, 如 表达式是 model.Pet 时, 还无法获得key.
 	key string
+
+	// 如果设置为noref, 则此表达式不会使用ref代替.
+	noRef bool
 }
 
 // 如果类型是 结构体, 则还需要查询到子方法, 或者子成员

@@ -114,26 +114,15 @@ components:
         id:
           type: integer
           description: Id is Pet ID
-        category:
-          type: object
-          properties:
-            id:
-              type: integer
-            name:
-              type: string
-          description: Category Is pet category
+        Category:
+          $ref: '#/components/schemas/Category'
         name:
           type: string
           description: Name is Pet name
         tags:
           type: array
           items:
-            type: object
-            properties:
-              id:
-                type: integer
-              name:
-                type: string
+            $ref: '#/components/schemas/Tag'
           description: Tag is Pet Tag
         status:
           type: string

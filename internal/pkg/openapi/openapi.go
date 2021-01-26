@@ -413,7 +413,7 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 
 // 入口
 // pathAndKey: e.g. github.com/zbysir/gopenapi/internal/model.Tag
-func (o *OpenApi) getGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) {
+func (o *OpenApi) getGoDoc(pathAndKey string, yamlKeyRouter []string) (g *GoDoc, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)
 
 	def, exist, err := o.goparse.GetDef(p, k)
@@ -431,17 +431,18 @@ func (o *OpenApi) getGoDoc(pathAndKey string) (g *GoDoc, exist bool, err error) 
 
 	// 如果是一个结构体, 则自动转为schema
 	if _, ok := def.Type.(*ast.StructType); ok {
-		//x:=o.schemas
-		//o.schemas = map[string]string{}
-		g.Schema, err = o.goAstToSchema(&GoExprWithPath{
+		expr := &GoExprWithPath{
 			goparse: o.goparse,
 			expr:    def.Type,
 			file:    def.File,
 			name:    def.Name,
 			key:     def.Key,
-		})
-		//o.schemas = x
-		//g.Schema, err = o.goAstToSchema(def.Type, def.File)
+		}
+
+		if isSchemasComponentsKey(yamlKeyRouter) {
+			expr.noRef = true
+		}
+		g.Schema, err = o.goAstToSchema(expr)
 		if err != nil {
 			return
 		}
@@ -634,7 +635,7 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 		return "", err
 	}
 
-	err = o.walkSchemas(kv, []string{"components", "schemas", "*", "x-$schema"}, nil)
+	err = o.walkSchemas(kv)
 	if err != nil {
 		return "", err
 	}
@@ -653,7 +654,7 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 	return
 }
 
-func (o *OpenApi) walkSchemas(kv []yaml.MapItem, wantKeys []string, walkKeys []string) (err error) {
+func walkYamlItem(kv []yaml.MapItem, wantKeys []string, walkedKeys []string, cb func(key []string, i yaml.MapItem)) {
 	for _, item := range kv {
 		key := ""
 
@@ -668,26 +669,35 @@ func (o *OpenApi) walkSchemas(kv []yaml.MapItem, wantKeys []string, walkKeys []s
 
 		if key == wantKeys[0] || wantKeys[0] == "*" {
 			if len(wantKeys) == 1 {
-				// 找到了
-				schemaKey := strings.Join(walkKeys[:len(walkKeys)], "/")
-				// TODO 友好错误提示
-				v := item.Value.(string)
-
-				o.schemas[v] = schemaKey
+				cb(walkedKeys, item)
 				break
 			}
 
 			switch val := item.Value.(type) {
 			case []yaml.MapItem:
-				err = o.walkSchemas(val, wantKeys[1:], append(walkKeys, key))
-				if err != nil {
-					return err
-				}
+				walkYamlItem(val, wantKeys[1:], append(walkedKeys, key), cb)
 			}
 		}
 	}
+}
 
+func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
+	walkYamlItem(kv, []string{"components", "schemas", "*", "x-$schema"}, nil, func(key []string, i yaml.MapItem) {
+		schemaKey := strings.Join(key, "/")
+		// TODO 有可能不是字符串, 这是不正确的, 需要给友好错误提示
+		v := i.Value.(string)
+
+		o.schemas[v] = schemaKey
+	})
 	return
+}
+
+// isSchemasComponentsKey 返回key是否是定义schema的key
+func isSchemasComponentsKey(key []string) bool {
+	if len(key) < 2 {
+		return false
+	}
+	return key[0] == "components" && key[1] == "schemas"
 }
 
 func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs []byte, err error) {
@@ -696,7 +706,7 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 
 	gj := goja.New()
 
-	log.Infof("%s", code)
+	//log.Infof("%s", code)
 	v, err := gj.RunScript("js", code)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)
@@ -741,7 +751,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 		// x-$xxx 语法, 将调用go注释
 		if strings.HasPrefix(key, "x-$") {
 			if v, ok := item.Value.(string); ok {
-				g, exist, err := o.getGoDoc(v)
+				g, exist, err := o.getGoDoc(v, keyRouter)
 				if err != nil {
 					return nil, err
 				}

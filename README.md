@@ -9,7 +9,7 @@ Gopenapi is progressive generator to generate openapi spec from golang source
 
 ## How
 
-Gopenapi order to achieve the above goals, it follow the following concepts:
+Gopenapi follow the following concepts to achieve the above goals:
 - Base on openapi.yaml file and expand it, you only need to understand the official openapi format
 - Separate openapi spec and source code, keep the source code clean
 - Support to override the generated spec
