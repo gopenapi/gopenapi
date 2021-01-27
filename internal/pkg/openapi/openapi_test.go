@@ -43,7 +43,7 @@ func TestXPathToOpenapi(t *testing.T) {
 }
 
 func TestRunJsExpress(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestRunJsExpress(t *testing.T) {
 
 // 入口
 func TestCompleteOpenapi(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCompleteOpenapi(t *testing.T) {
 }
 
 func TestToSchema(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestToSchema(t *testing.T) {
 }
 
 func TestAnyToSchema(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ $path:
 	if err != nil {
 		t.Fatal(err)
 	}
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ var config = {
 }
 
 func TestGetGoDocForFun(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestGetGoDocForFun(t *testing.T) {
 }
 
 func TestGetGoDocForStruct(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestYaml(t *testing.T) {
 }
 
 func TestWorkSchemas(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}

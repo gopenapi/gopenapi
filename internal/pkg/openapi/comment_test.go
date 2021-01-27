@@ -18,7 +18,7 @@ $:
 $c: 2
 $js-d: '{a: 1, b: schema(model.Pet)}'
 `
-	openAPi, err := NewOpenApi("../../../go.mod")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
 	if err != nil {
 		t.Fatal(err)
 	}

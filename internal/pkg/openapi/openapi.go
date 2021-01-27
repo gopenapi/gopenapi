@@ -12,6 +12,7 @@ import (
 	"github.com/zbysir/gopenapi/internal/pkg/log"
 	"go/ast"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"path"
 	"strconv"
 	"strings"
@@ -21,7 +22,7 @@ type OpenApi struct {
 	goparse *goast.GoParse
 
 	// js config
-	JsConfig string
+	jsConfig string
 
 	// schemas 存放需要refs的schemas
 	// github.com/zbysir/gopenapi/internal/model.Category => Category
@@ -83,19 +84,23 @@ function pSchema(s){
           return {
             parameters: value.meta.params.map(function (i){
               var x = i
-              delete(x['_from'])
               if (x.tag) {
                 if (x.tag.form){
                   x.name = x.tag.form
                 }
                 delete(x['tag'])
               }
-              delete(x['meta'])
-              delete(x['doc'])
-              if (!x.in){
-                x.in = 'query'
+              if (x['meta']) {
+                x.in = x['meta'].in;
+				x.required = x['meta'].required
               }
+              if (!x.in){
+			    x.in = 'query'	
+			  }
 
+              delete(x['_from'])
+              delete(x['doc'])
+              delete(x['meta'])
               return x
             }),
             responses: responses
@@ -111,15 +116,30 @@ function pSchema(s){
 
 `
 
-func NewOpenApi(gomodFile string) (*OpenApi, error) {
+func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	goSrc, err := gosrc.NewGoSrcFromModFile(gomodFile)
 	if err != nil {
 		return nil, err
 	}
 	p := goast.NewGoParse(goSrc)
+
+	jsConfig := defJsConfig
+	if jsFile != "" {
+		bs, err := ioutil.ReadFile(jsFile)
+		if err != nil {
+			return nil, fmt.Errorf("load jsConfig err: %w", err)
+		}
+		jsConfig = string(bs)
+	}
+
+	newCode, _, err := js.Transform(jsConfig, jsFile)
+	if err != nil {
+		return nil, fmt.Errorf("transform jsConfig to ES5 err: %w", err)
+	}
+
 	return &OpenApi{
 		goparse:  p,
-		JsConfig: defJsConfig,
+		jsConfig: newCode,
 		schemas:  map[string]string{},
 	}, nil
 }
@@ -142,9 +162,11 @@ func (p PkgGetter) GetMember(k string) interface{} {
 	return &GoExprWithPath{
 		goparse: p.goparse,
 		expr:    def.Type,
+		doc:     def.Doc,
 		file:    def.File,
 		name:    def.Name,
 		key:     def.Key,
+		noRef:   false,
 	}
 }
 
@@ -215,33 +237,42 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
 	var l []interface{}
 	switch s := ep.expr.(type) {
 	case *ast.StructType:
-		for _, f := range s.Fields.List {
-			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
-			if err != nil {
-				fmt.Printf("[err] %v", err)
-				return nil
-			}
+		// 父级的 meta会传递到所有子字段
+		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
+		if err != nil {
+			fmt.Printf("[err] %v", err)
+			return nil
+		}
 
+		for _, f := range s.Fields.List {
 			// 获取子字段 key
 			name := f.Names[0].Name
 			schema, err := o.goAstToSchema(&GoExprWithPath{
 				goparse: o.goparse,
 				expr:    f.Type,
+				doc:     f.Doc,
 				file:    ep.file,
 				name:    name,
 				key:     "",
+				noRef:   false,
 			})
-			//schema, err := o.goAstToSchema(f.Type, ep.path)
 			if err != nil {
 				fmt.Printf("[err] %v\n", err)
 				continue
 			}
+
+			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
+			if err != nil {
+				fmt.Printf("[err] %v", err)
+				continue
+			}
+
 			l = append(l, ParamsItem{
 				From:   "go",
 				Name:   name,
 				Tag:    encodeTag(f.Tag),
 				Doc:    gd.FullDoc,
-				Meta:   gd.Meta,
+				Meta:   mergeJsonMap(parentGoDoc.Meta, gd.Meta),
 				Schema: schema,
 			})
 		}
@@ -434,9 +465,11 @@ func (o *OpenApi) getGoDoc(pathAndKey string, yamlKeyRouter []string) (g *GoDoc,
 		expr := &GoExprWithPath{
 			goparse: o.goparse,
 			expr:    def.Type,
+			doc:     def.Doc,
 			file:    def.File,
 			name:    def.Name,
 			key:     def.Key,
+			noRef:   false,
 		}
 
 		if isSchemasComponentsKey(yamlKeyRouter) {
@@ -701,11 +734,20 @@ func isSchemasComponentsKey(key []string) bool {
 }
 
 func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs []byte, err error) {
-	krBs, _ := json.Marshal(keyRouter)
-	code := fmt.Sprintf(`%s; var r = config.filter("%s", %s, %s); JSON.stringify(r)`, o.JsConfig, key, in, krBs)
-
 	gj := goja.New()
 
+	_, err = gj.RunScript("builtin", "var exports= {};")
+	if err != nil {
+		return
+	}
+	_, err = gj.RunScript("jsConfig", o.jsConfig)
+	if err != nil {
+		err = fmt.Errorf("RunScript err: %w", err)
+		return
+	}
+
+	krBs, _ := json.Marshal(keyRouter)
+	code := fmt.Sprintf(`var r = exports.default.filter("%s", %s, %s); JSON.stringify(r)`, key, in, krBs)
 	//log.Infof("%s", code)
 	v, err := gj.RunScript("js", code)
 	if err != nil {

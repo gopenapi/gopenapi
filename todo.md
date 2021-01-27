@@ -19,4 +19,7 @@
 
   ```
 
-- [ ] 关联ref
+- [x] 关联ref
+  除了 components/schemas下声明的schemas, 其他引用的schemas都会使用ref关联.
+
+- [ ] 覆盖生成的yaml

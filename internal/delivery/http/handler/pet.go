@@ -18,8 +18,6 @@ var (
 	b = 1
 )
 
-// PetHandler doc
-// $
 type PetHandler struct {
 	u usecase.PetUseCase
 }

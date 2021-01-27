@@ -349,6 +349,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 type GoExprWithPath struct {
 	goparse *goast.GoParse
 	expr    ast.Expr
+	doc  *ast.CommentGroup
 	// 文件地址
 	file string
 

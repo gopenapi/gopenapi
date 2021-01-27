@@ -1,4 +1,3 @@
-// {type, properties}
 function pSchema(s) {
   if (s.properties) {
     var p = {}
@@ -26,37 +25,48 @@ function pSchema(s) {
   return s
 }
 
-var config = {
+export default {
   filter: function (key, value) {
     if (key === 'x-$path') {
-      var responses = {}
+      let responses = {}
       Object.keys(value.meta.resp).forEach(function (k) {
-        var v = value.meta.resp[k]
-        responses[k] = {
-          description: v.desc || 'success',
-          content: {
-            'application/json': {
-              schema: pSchema(v.schema),
+        let v = value.meta.resp[k]
+        let rsp
+        if (typeof v == 'string') {
+          rsp = {$ref: v}
+        } else {
+          rsp = {
+            description: v.desc || 'success',
+            content: {
+              'application/json': {
+                schema: pSchema(v.schema),
+              }
             }
           }
         }
+
+        responses[k] = rsp
       })
       return {
         parameters: value.meta.params.map(function (i) {
-          var x = i
-          delete (x['_from'])
+          let x = i
           if (x.tag) {
             if (x.tag.form) {
               x.name = x.tag.form
             }
             delete (x['tag'])
           }
-          delete (x['meta'])
-          delete (x['doc'])
+          if (x['meta']) {
+            x.in = x['meta'].in;
+            x.required = x['meta'].required
+          }
           if (!x.in) {
             x.in = 'query'
           }
 
+          delete (x['_from'])
+          delete (x['doc'])
+          delete (x['meta'])
           return x
         }),
         responses: responses

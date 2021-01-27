@@ -26,12 +26,10 @@ const (
 	SoldPet      PetStatus = "sold"
 )
 
-// $in: path
+// $in: query
 type FindPetByStatusParams struct {
 	// Status values that need to be considered for filter
-	// $:
-	//   required: true
-	//   in: query
+	// $required: true
 	Status []PetStatus `form:"status"`
 }
 

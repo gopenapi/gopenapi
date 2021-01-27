@@ -45,6 +45,7 @@ paths:
             - pending
             - sold
         in: query
+        required: true
       responses:
         "200":
           description: 成功
