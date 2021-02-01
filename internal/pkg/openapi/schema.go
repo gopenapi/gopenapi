@@ -11,11 +11,10 @@ import (
 )
 
 type ObjectSchema struct {
-	Ref string `json:"$ref,omitempty"`
-
-	Type string `json:"type"`
-
+	Ref        string               `json:"$ref,omitempty"`
+	Type       string               `json:"type"`
 	Properties jsonordered.MapSlice `json:"properties"`
+	IsSchema   bool                 `json:"_schema,omitempty"`
 }
 
 func (o *ObjectSchema) _schema() {}
@@ -34,7 +33,7 @@ type ObjectProp struct {
 }
 
 // 对于嵌套了Interface的结构体, json不支持嵌入式序列化, 故出此下策.
-type ObjectPropObj struct {
+type ObjectPropForJson struct {
 	*ObjectSchema
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Description string               `json:"description,omitempty"`
@@ -42,7 +41,7 @@ type ObjectPropObj struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-type ObjectPropArray struct {
+type ArrayPropForJson struct {
 	*ArraySchema
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Description string               `json:"description,omitempty"`
@@ -50,7 +49,7 @@ type ObjectPropArray struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-type ObjectPropIdent struct {
+type IdentPropForJson struct {
 	*IdentSchema
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Description string               `json:"description,omitempty"`
@@ -58,21 +57,23 @@ type ObjectPropIdent struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-type ObjectPropNil struct {
+type NilPropForJson struct {
+	*NilSchema
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Description string               `json:"description,omitempty"`
 	Tag         map[string]string    `json:"tag,omitempty"`
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-type ObjectPropRef struct {
+type RefPropForJson struct {
+	*RefSchema
 	Ref string `json:"$ref"`
 }
 
 func (o ObjectProp) MarshalJSON() ([]byte, error) {
 	switch s := o.Schema.(type) {
 	case *ObjectSchema:
-		return json.Marshal(ObjectPropObj{
+		return json.Marshal(ObjectPropForJson{
 			ObjectSchema: s,
 			Meta:         o.Meta,
 			Description:  o.Description,
@@ -80,7 +81,7 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Example:      o.Example,
 		})
 	case *ArraySchema:
-		return json.Marshal(ObjectPropArray{
+		return json.Marshal(ArrayPropForJson{
 			ArraySchema: s,
 			Meta:        o.Meta,
 			Description: o.Description,
@@ -88,7 +89,7 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Example:     o.Example,
 		})
 	case *IdentSchema:
-		return json.Marshal(ObjectPropIdent{
+		return json.Marshal(IdentPropForJson{
 			IdentSchema: s,
 			Meta:        o.Meta,
 			Description: o.Description,
@@ -96,15 +97,17 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Example:     o.Example,
 		})
 	case *NilSchema:
-		return json.Marshal(ObjectPropNil{
+		return json.Marshal(NilPropForJson{
+			NilSchema:   s,
 			Meta:        o.Meta,
 			Description: o.Description,
 			Tag:         o.Tag,
 			Example:     o.Example,
 		})
 	case *RefSchema:
-		return json.Marshal(ObjectPropRef{
-			Ref: s.Ref,
+		return json.Marshal(RefPropForJson{
+			RefSchema: s,
+			Ref:       s.Ref,
 		})
 	default:
 		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
@@ -117,9 +120,10 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 type IdentSchema struct {
 	Ref string `json:"$ref,omitempty"`
 
-	Type    string        `json:"type"`
-	Default interface{}   `json:"default,omitempty"`
-	Enum    []interface{} `json:"enum,omitempty"`
+	Type     string        `json:"type"`
+	Default  interface{}   `json:"default,omitempty"`
+	Enum     []interface{} `json:"enum,omitempty"`
+	IsSchema bool          `json:"_schema,omitempty"`
 }
 
 func (a *IdentSchema) GetType() string {
@@ -129,6 +133,7 @@ func (a *IdentSchema) GetType() string {
 func (s *IdentSchema) _schema() {}
 
 type NilSchema struct {
+	IsSchema bool `json:"_schema,omitempty"`
 }
 
 func (n NilSchema) _schema() {
@@ -195,7 +200,7 @@ func (expr *GoExprWithPath) Key() (string, error) {
 //   expr参数是goAst
 //   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/zbysir/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
 func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
-	if !expr.noRef{
+	if !expr.noRef {
 		exprKey, err := expr.Key()
 		if err != nil {
 			err = fmt.Errorf("call Expr.Key err: %w", err)
@@ -203,7 +208,8 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		}
 		if ref, ok := o.schemas[exprKey]; ok {
 			return &RefSchema{
-				Ref: "#/" + ref,
+				Ref:      "#/" + ref,
+				IsSchema: true,
 			}, nil
 		}
 	}
@@ -222,8 +228,9 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			return nil, err
 		}
 		return &ArraySchema{
-			Type:  "array",
-			Items: schema,
+			Type:     "array",
+			Items:    schema,
+			IsSchema: true,
 		}, nil
 
 	case *ast.Ident:
@@ -231,8 +238,9 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
 		if is, t := IsBaseType(s.Name); is {
 			return &IdentSchema{
-				Type: t,
-				Enum: nil,
+				Type:     t,
+				Enum:     nil,
+				IsSchema: true,
 			}, nil
 		}
 		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgFile(expr.file), s.Name)
@@ -338,18 +346,21 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		return &ObjectSchema{
 			Type:       "object",
 			Properties: props,
+			IsSchema:   true,
 		}, nil
 	default:
 		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
 	}
 
-	return &NilSchema{}, nil
+	return &NilSchema{
+		IsSchema: true,
+	}, nil
 }
 
 type GoExprWithPath struct {
 	goparse *goast.GoParse
 	expr    ast.Expr
-	doc  *ast.CommentGroup
+	doc     *ast.CommentGroup
 	// 文件地址
 	file string
 
@@ -420,6 +431,7 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			return &ArraySchema{
 				Type:  "array",
 				Items: item,
+				IsSchema: true,
 			}, nil
 		}
 		item, err := o.anyToSchema(s[0])
@@ -429,6 +441,7 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 		return &ArraySchema{
 			Type:  "array",
 			Items: item,
+			IsSchema: true,
 		}, nil
 	case map[string]interface{}:
 		var keys []string
@@ -459,21 +472,31 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 		return &ObjectSchema{
 			Type:       "object",
 			Properties: props,
+			IsSchema: true,
 		}, nil
 	case string:
 		return &IdentSchema{
 			Type: "string",
-			Enum: nil,
+			Default: s,
+			IsSchema: true,
 		}, nil
 	case int64, int:
 		return &IdentSchema{
 			Type: "int",
-			Enum: nil,
+			Default: s,
+			IsSchema: true,
 		}, nil
 	case nil:
 		return &ObjectSchema{
 			Type:       "null",
 			Properties: nil,
+			IsSchema: true,
+		}, nil
+	case bool:
+		return &IdentSchema{
+			Type:    "boolean",
+			Default: s,
+			IsSchema: true,
 		}, nil
 	default:
 		panic(fmt.Sprintf("uncased type2Schema type: %T, %+v", s, s))

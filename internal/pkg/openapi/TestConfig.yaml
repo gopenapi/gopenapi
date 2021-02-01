@@ -44,6 +44,8 @@ paths:
             - available
             - pending
             - sold
+            _schema: true
+          _schema: true
         in: query
         required: true
       responses:
@@ -55,6 +57,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Pet'
+                  _schema: true
+                _schema: false
         "401":
           $ref: '#/components/responses/401'
       tags:
@@ -78,6 +82,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Pet'
+                _schema: true
         "404":
           description: Not Found Pet
           content:
@@ -100,30 +105,41 @@ components:
       properties:
         id:
           type: integer
+          _schema: true
         name:
           type: string
+          _schema: true
+      _schema: true
     Tag:
       type: object
       properties:
         id:
           type: integer
+          _schema: true
         name:
           type: string
+          _schema: true
+      _schema: true
     Pet:
       type: object
       properties:
         id:
           type: integer
+          _schema: true
           description: Id is Pet ID
         Category:
+          _schema: true
           $ref: '#/components/schemas/Category'
         name:
           type: string
+          _schema: true
           description: Name is Pet name
         tags:
           type: array
           items:
             $ref: '#/components/schemas/Tag'
+            _schema: true
+          _schema: true
           description: Tag is Pet Tag
         status:
           type: string
@@ -132,7 +148,9 @@ components:
           - available
           - pending
           - sold
+          _schema: true
           description: PetStatus
+      _schema: true
       required:
       - name
       - photoUrls

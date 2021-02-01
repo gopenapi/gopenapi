@@ -6,7 +6,6 @@ import (
 	"github.com/zbysir/gopenapi/internal/pkg/openapi"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 )
 
 var rootCmd = &cobra.Command{
@@ -44,7 +43,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() error {
-	rootCmd.Flags().String("config", filepath.Join("./", "gopenapi.js"), "Specify the configuration file to be used")
+	rootCmd.Flags().String("config", "gopenapi.conf.js", "Specify the configuration file to be used")
 	rootCmd.Flags().String("input", "", "Specify the source file in yaml format")
 	rootCmd.Flags().String("output", "", "Specify the output file path")
 

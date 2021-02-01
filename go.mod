@@ -7,6 +7,7 @@ require (
 	github.com/buger/jsonparser v1.1.1
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/dop251/goja v0.0.0-20210106133455-27b0a7dc4c7f
+	github.com/dop251/goja_nodejs v0.0.0-20201222133159-1629e8d0b836
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/mitchellh/mapstructure v1.4.1

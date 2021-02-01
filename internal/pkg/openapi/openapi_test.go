@@ -59,7 +59,7 @@ func TestRunJsExpress(t *testing.T) {
 
 // 入口
 func TestCompleteOpenapi(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
 	if err != nil {
 		t.Fatal(err)
 	}

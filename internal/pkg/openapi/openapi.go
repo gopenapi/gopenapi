@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/console"
+	"github.com/dop251/goja_nodejs/require"
 	"github.com/zbysir/gopenapi/internal/pkg/goast"
 	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
 	"github.com/zbysir/gopenapi/internal/pkg/js"
@@ -138,6 +140,7 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	}
 
 	return &OpenApi{
+
 		goparse:  p,
 		jsConfig: newCode,
 		schemas:  map[string]string{},
@@ -581,8 +584,9 @@ type Schema interface {
 }
 
 type ArraySchema struct {
-	Type  string `json:"type"`
-	Items Schema `json:"items"`
+	Type     string `json:"type"`
+	Items    Schema `json:"items"`
+	IsSchema bool   `json:"_schema"`
 }
 
 func (a *ArraySchema) GetType() string {
@@ -591,6 +595,7 @@ func (a *ArraySchema) GetType() string {
 
 type RefSchema struct {
 	Ref string `json:"$ref"`
+	IsSchema bool   `json:"_schema"`
 }
 
 func (r *RefSchema) _schema() {}
@@ -734,13 +739,16 @@ func isSchemasComponentsKey(key []string) bool {
 }
 
 func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs []byte, err error) {
-	gj := goja.New()
+	vm := goja.New()
 
-	_, err = gj.RunScript("builtin", "var exports= {};")
+	new(require.Registry).Enable(vm)
+	console.Enable(vm)
+
+	_, err = vm.RunScript("builtin", "var exports= {};")
 	if err != nil {
 		return
 	}
-	_, err = gj.RunScript("jsConfig", o.jsConfig)
+	_, err = vm.RunScript("jsConfig", o.jsConfig)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)
 		return
@@ -749,7 +757,7 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 	krBs, _ := json.Marshal(keyRouter)
 	code := fmt.Sprintf(`var r = exports.default.filter("%s", %s, %s); JSON.stringify(r)`, key, in, krBs)
 	//log.Infof("%s", code)
-	v, err := gj.RunScript("js", code)
+	v, err := vm.RunScript("js", code)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)
 		return
