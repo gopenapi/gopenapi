@@ -1,6 +1,9 @@
 package openapi
 
-import "github.com/zbysir/gopenapi/internal/pkg/jsonordered"
+import (
+	"encoding/json"
+	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
+)
 
 // 合并两个mapSlice
 func mergeJsonMap(a, b jsonordered.MapSlice) jsonordered.MapSlice {
@@ -36,4 +39,11 @@ func mergeJsonMap(a, b jsonordered.MapSlice) jsonordered.MapSlice {
 	}
 
 	return r
+}
+
+// copyToBaseType copy any type data to base type
+func copyToBaseType(a interface{}) (i interface{}) {
+	bs, _ := json.Marshal(a)
+	json.Unmarshal(bs, &i)
+	return
 }

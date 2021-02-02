@@ -78,3 +78,31 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 
 	ctx.JSON(200, r)
 }
+
+// PutPet Update pet by ID
+//
+// $:
+//    js-body: "body(model.Pet)"
+//    js-response: |
+//     {200: {schema: schema(model.Pet), desc:"返回新的Pet"}}
+//
+func (h *PetHandler) PutPet(ctx *gin.Context) {
+	var p model.GetPetById
+	err := ctx.ShouldBindUri(&p)
+	if err != nil {
+		ctx.JSON(400, err)
+		return
+	}
+
+	r, exist, err := h.u.GetPet(context.TODO(), &p)
+	if err != nil {
+		ctx.JSON(400, err)
+		return
+	}
+
+	if !exist {
+		ctx.JSON(404, "not found")
+	}
+
+	ctx.JSON(200, r)
+}

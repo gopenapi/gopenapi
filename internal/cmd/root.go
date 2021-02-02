@@ -40,6 +40,7 @@ var rootCmd = &cobra.Command{
 
 		return nil
 	},
+	SilenceUsage: true,
 }
 
 func Execute() error {

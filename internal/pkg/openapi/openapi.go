@@ -187,8 +187,9 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 	//return nil,nil
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
 		// builtin function:
-		// - params
-		// - schema
+		// - params: for parameters of openapi
+		// - schema: for schemas of openapi
+		// - body: for requestBody of openapi
 		if name == "params" {
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
@@ -196,12 +197,37 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 				case nil:
 					return nil, nil
 				case *GoExprWithPath:
-					// case for follow syntax:
-					//   params(model.FindPetByStatusParams)
-					return o.struct2ParamsList(s), nil
+					// case for params(model.FindPetByStatusParams) syntax:
+
+					// 由于 运行js 表达式只支持基础类型, 所以需要转为[]interface{}
+					// 又由于 go 的map[string]interface{} 是无序的, 所以不能使用copyToBaseType函数递归将所有字段都转为baseType.
+					list := o.struct2ParamsList(s)
+					x := make([]interface{}, len(list))
+					for i, v := range list {
+						x[i] = v
+					}
+					return x, nil
 				}
-				// 如果不是go的结构, 则原样返回
-				//   params([{name: 'status'}])
+				// case for non-go syntax. e.g.:
+				//   params([{name: 'status', schema: 'string'}])
+				return stru, nil
+			}, nil
+		} else if name == "body" {
+			return func(args ...interface{}) (interface{}, error) {
+				stru := args[0]
+				switch s := stru.(type) {
+				case nil:
+					return nil, nil
+				case *GoExprWithPath:
+					// case for body(model.FindPetByStatusParams) syntax:
+					g, _, err := o.getGoStruct(s.key, nil)
+					if err != nil {
+						return nil, err
+					}
+					return g, nil
+				}
+				// case for non-go syntax. e.g.:
+				//   body({desc: "Pet object that needs to be added to the store", schema: {$ref: '#/components/schemas/Pet'})
 				return stru, nil
 			}, nil
 		} else if name == "schema" {
@@ -236,8 +262,8 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 
 // 将struct解析成 openapi.parameters
 // 返回的是[]ParamsItem.
-func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []interface{} {
-	var l []interface{}
+func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
+	var l []ParamsItem
 	switch s := ep.expr.(type) {
 	case *ast.StructType:
 		// 父级的 meta会传递到所有子字段
@@ -304,11 +330,6 @@ func IsBaseType(t string) (is bool, openApiType string) {
 		return true, "complex"
 	}
 	return
-}
-
-func (o *OpenApi) fullCommentMetaToJson(i []yaml.MapItem, filename string) jsonordered.MapSlice {
-	r := o.fullCommentMeta(i, filename)
-	return yamlItemToJsonItem(r)
 }
 
 // 这里没有case []interface, 可能会出现问题
@@ -389,7 +410,7 @@ func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 //   resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
 // filename 指定当前注释在哪一个文件中, 会根据文件中import的pkg获取.
 // 返回结构体给最后组装yaml使用
-func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapItem {
+func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.MapItem, error) {
 	var r []yaml.MapItem
 	for _, item := range i {
 		s := item.Key.(string)
@@ -410,7 +431,7 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 				jsCode := strings.Trim(v[3:], " ")
 				v, err := o.runJsExpress(jsCode, filename)
 				if err != nil {
-					panic(err)
+					return nil, err
 				}
 
 				r = append(r, yaml.MapItem{
@@ -424,9 +445,13 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 				})
 			}
 		case []yaml.MapItem:
+			v, err := o.fullCommentMeta(v, filename)
+			if err != nil {
+				return nil, err
+			}
 			r = append(r, yaml.MapItem{
 				Key:   item.Key,
-				Value: o.fullCommentMeta(v, filename),
+				Value: v,
 			})
 		case []interface{}:
 			r = append(r, yaml.MapItem{
@@ -442,12 +467,12 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) []yaml.MapI
 		}
 	}
 
-	return r
+	return r, nil
 }
 
 // 入口
 // pathAndKey: e.g. github.com/zbysir/gopenapi/internal/model.Tag
-func (o *OpenApi) getGoDoc(pathAndKey string, yamlKeyRouter []string) (g *GoDoc, exist bool, err error) {
+func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoStruct, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)
 
 	def, exist, err := o.goparse.GetDef(p, k)
@@ -594,7 +619,7 @@ func (a *ArraySchema) GetType() string {
 }
 
 type RefSchema struct {
-	Ref string `json:"$ref"`
+	Ref      string `json:"$ref"`
 	IsSchema bool   `json:"_schema"`
 }
 
@@ -773,17 +798,6 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 	return []byte(s), err
 }
 
-type keyRouter []string
-
-// IsKey 返回keyRouter路径中回退 skip 步之后的元素是否是 key
-func (k keyRouter) IsKey(key string, skip int) bool {
-	if len(k) <= skip {
-		return false
-	}
-
-	return k[len(k)-skip] == key
-}
-
 // keyRoute: key的路径
 func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yaml.MapItem, err error) {
 	for _, item := range in {
@@ -801,7 +815,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 		// x-$xxx 语法, 将调用go注释
 		if strings.HasPrefix(key, "x-$") {
 			if v, ok := item.Value.(string); ok {
-				g, exist, err := o.getGoDoc(v, keyRouter)
+				g, exist, err := o.getGoStruct(v, keyRouter)
 				if err != nil {
 					return nil, err
 				}

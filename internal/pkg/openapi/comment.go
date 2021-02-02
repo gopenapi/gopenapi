@@ -9,7 +9,7 @@ import (
 
 // 处理 go 注释为元数据
 // 这个值是js脚本的参数, 故需要正确的被json序列化.
-type GoDoc struct {
+type GoStruct struct {
 	// FullDoc 是整个注释(除去变量部分)
 	FullDoc string `json:"doc"`
 
@@ -33,7 +33,7 @@ type GoDoc struct {
 //   js-params: "[...params(model.FindPetByStatusParams), {name: 'status', required: true}]"
 //   js-resp: '{200: {desc: "成功", content: schema([model.Pet]}, 401: {desc: "没权限", content: schema({msg: "没权限"})}}'
 //
-func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoDoc, error) {
+func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoStruct, error) {
 	// 逐行扫描
 	// 获取doc或者meta
 	lines := strings.Split(doc, "\n")
@@ -90,7 +90,7 @@ func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoDoc, error) {
 	summary := lines[0]
 	description := strings.Join(lines[1:], "\n\n")
 
-	return &GoDoc{
+	return &GoStruct{
 		FullDoc:     doc,
 		Summary:     summary,
 		Description: description,
@@ -149,7 +149,10 @@ func (o *OpenApi) parseYaml(y string, filepath string) ([]yaml.MapItem, error) {
 	}
 
 	// 将go:语法转换为一个完整的json
-	var fulled = o.fullCommentMeta(allObj, filepath)
+	fulled, err := o.fullCommentMeta(allObj, filepath)
+	if err != nil {
+		return nil, err
+	}
 
 	return fulled, nil
 }

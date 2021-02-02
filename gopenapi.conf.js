@@ -1,4 +1,148 @@
-function pSchema(s) {
+export default {
+  filter: function (key, value) {
+    switch (key) {
+      case 'x-$path': {
+        let responses = {}
+        if (value.meta.response) {
+          if (value.meta.response._schema) {
+            // for schema(xxx) syntax
+            responses = {
+              "200": {
+                description: 'success',
+                content: {
+                  'application/json': {
+                    schema: processSchema(value.meta.response),
+                  }
+                }
+              }
+            }
+          } else {
+            // for {200: xxx} syntax
+            Object.keys(value.meta.response).forEach(function (k) {
+              let v = value.meta.response[k]
+              let rsp
+              if (typeof v == 'string') {
+                if (v[0] === '#' && v[1] !== '/') {
+                  // for `#404`
+                  rsp = {$ref: '#/components/responses/' + v.substr(1)}
+                } else {
+                  // for `#/components/responses/404`
+                  rsp = {$ref: v}
+                }
+              } else {
+                let schema
+                if (v._schema) {
+                  schema = v
+                } else {
+                  schema = v.schema
+                }
+                rsp = {
+                  description: v.desc || 'success',
+                  content: {
+                    'application/json': {
+                      schema: processSchema(schema),
+                    }
+                  }
+                }
+              }
+
+              responses[k] = rsp
+            })
+          }
+        } else {
+          // add default response
+          responses = {
+            "200": {
+              $ref: '#/components/responses/200',
+            }
+          }
+        }
+
+        let params
+        // console.log('params', JSON.stringify(value.meta.params))
+        if (value.meta.params) {
+          params = value.meta.params.map(function (i) {
+            let x = i
+            if (x.tag) {
+              if (x.tag.form) {
+                x.name = x.tag.form
+              }
+              delete (x['tag'])
+            }
+            if (x['meta']) {
+              x.in = x['meta'].in;
+              x.required = x['meta'].required
+            }
+            if (!x.in) {
+              // default `in` for params
+              x.in = 'query'
+            }
+            if (x.schema) {
+              // default `in` for params
+              x.schema = processSchema(x.schema)
+            }
+
+            delete (x['_from'])
+            delete (x['doc'])
+            delete (x['meta'])
+
+            return x
+          })
+        }
+
+        let body
+        if (value.meta.body) {
+          if (value.meta.body._schema) {
+            // for schema(xxx) syntax
+            body = {
+              description: 'body',
+              content: {
+                'application/json': {
+                  schema: processSchema(value.meta.body),
+                }
+              }
+            }
+          } else {
+            let v = value.meta.body
+            let schema
+            if (v._schema) {
+              schema = v
+            } else {
+              schema = v.schema
+            }
+            body = {
+              description: v.desc || 'body',
+              content: {
+                'application/json': {
+                  schema: processSchema(schema),
+                }
+              }
+            }
+          }
+        }
+
+        return {
+          summary: value.summary,
+          description: value.description,
+          parameters: params,
+          responses: responses,
+          requestBody: body,
+        }
+      }
+      case 'x-$schema': {
+        return processSchema(value.schema)
+      }
+    }
+    return value
+  }
+}
+
+// processSchema process go-schema to openapi-schema.
+function processSchema(s) {
+  if (!s) {
+    return null
+  }
+
   if (s.properties) {
     var p = {}
     Object.keys(s.properties).forEach(function (key) {
@@ -12,70 +156,17 @@ function pSchema(s) {
         delete (v['tag'])
       }
 
-      p[name] = pSchema(v)
+      p[name] = processSchema(v)
     })
 
     s.properties = p
   }
 
   if (s.items) {
-    s.items = pSchema(s.items)
+    s.items = processSchema(s.items)
   }
+
+  delete s['_schema']
 
   return s
-}
-
-export default {
-  filter: function (key, value) {
-    if (key === 'x-$path') {
-      let responses = {}
-      Object.keys(value.meta.resp).forEach(function (k) {
-        let v = value.meta.resp[k]
-        let rsp
-        if (typeof v == 'string') {
-          rsp = {$ref: v}
-        } else {
-          rsp = {
-            description: v.desc || 'success',
-            content: {
-              'application/json': {
-                schema: pSchema(v.schema),
-              }
-            }
-          }
-        }
-
-        responses[k] = rsp
-      })
-      return {
-        parameters: value.meta.params.map(function (i) {
-          let x = i
-          if (x.tag) {
-            if (x.tag.form) {
-              x.name = x.tag.form
-            }
-            delete (x['tag'])
-          }
-          if (x['meta']) {
-            x.in = x['meta'].in;
-            x.required = x['meta'].required
-          }
-          if (!x.in) {
-            x.in = 'query'
-          }
-
-          delete (x['_from'])
-          delete (x['doc'])
-          delete (x['meta'])
-          return x
-        }),
-        responses: responses
-      }
-    }
-    if (key === 'x-$schema') {
-      return pSchema(value.schema)
-    }
-
-    return value
-  }
 }

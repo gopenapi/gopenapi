@@ -6,11 +6,11 @@ import (
 	"github.com/zbysir/goja-parser/parser"
 )
 
-func ParseExpress(code string) (ast.Expression, error) {
-	p, err := parser.ParseFile(nil, fmt.Sprintf("'%s'",code), fmt.Sprintf("(%s)", code), 0)
+func parseExpress(code string) (ast.Expression, string, error) {
+	source := fmt.Sprintf("(%s)", code)
+	p, err := parser.ParseFile(nil, fmt.Sprintf("'%s'", code), source, 0)
 	if err != nil {
-		return nil, err
+		return nil, source, err
 	}
-
-	return p.Body[0].(*ast.ExpressionStatement).Expression, nil
+	return p.Body[0].(*ast.ExpressionStatement).Expression, source, nil
 }

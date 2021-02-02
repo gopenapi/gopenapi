@@ -50,6 +50,11 @@ paths:
       operationId: getPetById
       security:
         - api_key: []
+  /pet:
+    post:
+      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.PutPet
+      tags:
+        - pet
 
 components:
   schemas:
@@ -64,6 +69,14 @@ components:
         - photoUrls
 
   responses:
+    200:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: string
+            example: ok
+
     400:
       description: Invalid Params
       content:

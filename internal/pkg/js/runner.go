@@ -10,12 +10,12 @@ import (
 
 // RunJs 运行一个js表达式, 返回值
 func RunJs(js string, getter func(name string) (interface{}, error)) (interface{}, error) {
-	express, err := ParseExpress(js)
+	express, source, err := parseExpress(js)
 	if err != nil {
 		return nil, err
 	}
 
-	r := Runner{getter: getter}
+	r := Runner{getter: getter, source: source}
 
 	return r.run(express)
 }
@@ -25,6 +25,7 @@ type Runner struct {
 	getter func(name string) (interface{}, error)
 	// strict 表示是否是严格模式, 严格模式下, 遇到的错都会被return, 非严格模式下, Runner会尽量的返回nil, 而不报错.
 	strict bool
+	source string
 }
 
 func interface2ObjKey(i interface{}) string {
@@ -140,7 +141,11 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 			return nil, err
 		}
 
-		fun := funci.(func(arg ...interface{}) (interface{}, error))
+		fun, ok := funci.(func(arg ...interface{}) (interface{}, error))
+		if !ok {
+			return nil, r.newError(int(e.Idx0()), int(e.Idx1()),
+				fmt.Errorf("'%s' is not a function", r.expressionToString(e.Callee)))
+		}
 		args := make([]interface{}, len(e.ArgumentList))
 
 		for i, a := range e.ArgumentList {
@@ -167,6 +172,24 @@ func (r *Runner) dotExpressionToString(de *ast.DotExpression) string {
 	}
 	return key
 }
+
+// 用于debug
+func (r *Runner) expressionToString(de ast.Expression) string {
+	switch l := de.(type) {
+	case *ast.DotExpression:
+		return r.expressionToString(l.Left) + "." + r.expressionToString(&l.Identifier)
+	case *ast.Identifier:
+		return l.Name.String()
+	default:
+		panic(fmt.Sprintf("uncased expression Type :%T", l))
+	}
+	return ""
+}
+
+func (r *Runner) newError(start, end int, err error) error {
+	return fmt.Errorf("run '%s' err: %w", r.source[start-1:end-1], err)
+}
+
 func interfaceAdd(a, b interface{}) interface{} {
 	an, ok := isNumber(a)
 	if !ok {

@@ -211,7 +211,7 @@ func TestGetGoDocForFun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoDoc("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus", nil)
+	d, exist, err := openAPi.getGoStruct("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus", nil)
 	if err != nil {
 		return
 	}
@@ -231,7 +231,7 @@ func TestGetGoDocForStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoDoc("github.com/zbysir/gopenapi/internal/model.Pet", nil)
+	d, exist, err := openAPi.getGoStruct("github.com/zbysir/gopenapi/internal/model.Pet", nil)
 	if err != nil {
 		return
 	}

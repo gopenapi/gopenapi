@@ -17,7 +17,7 @@ func TestName(t *testing.T) {
 }
 
 func TestParseExpress(t *testing.T) {
-	e, err := ParseExpress("[...{a: 1}, a[1]]")
+	e, err := parseExpress("[...{a: 1}, a[1]]")
 	if err != nil {
 		t.Fatal(err)
 	}

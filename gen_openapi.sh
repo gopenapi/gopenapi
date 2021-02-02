@@ -1,1 +1,1 @@
-gopenapi --input=openapi/petstore_simp.yaml --output=12.yaml
+go run main.go --input=example/petstore/petstore_simp.yaml --output=example/petstore/petstore_gen.yaml

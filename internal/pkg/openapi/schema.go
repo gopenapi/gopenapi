@@ -67,7 +67,8 @@ type NilPropForJson struct {
 
 type RefPropForJson struct {
 	*RefSchema
-	Ref string `json:"$ref"`
+	Ref string            `json:"$ref"`
+	Tag map[string]string `json:"tag,omitempty"`
 }
 
 func (o ObjectProp) MarshalJSON() ([]byte, error) {
@@ -108,6 +109,7 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 		return json.Marshal(RefPropForJson{
 			RefSchema: s,
 			Ref:       s.Ref,
+			Tag:       o.Tag,
 		})
 	default:
 		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
@@ -216,13 +218,13 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 	switch s := expr.expr.(type) {
 	case *ast.ArrayType:
-		// TODO key
 		schema, err := o.goAstToSchema(&GoExprWithPath{
 			goparse: o.goparse,
 			expr:    s.Elt,
 			file:    expr.file,
 			name:    "",
-			key:     "",
+			// TODO key
+			key: "",
 		})
 		if err != nil {
 			return nil, err
@@ -367,10 +369,10 @@ type GoExprWithPath struct {
 	// name 是当前表达式的字段名, 如结构体中的字段.
 	name string
 	// 当前表达式的唯一标识, 如 github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
-	// 此值有可能为空, 如 表达式是 model.Pet 时, 还无法获得key.
+	// 此值有可能为空, 如 表达式是具体的某个结构体声明时无法获得key.
 	key string
 
-	// 如果设置为noref, 则此表达式不会使用ref代替.
+	// 如果设置为noref, 则此表达式转成schema时不会使用ref代替, 用于定义schema时.
 	noRef bool
 }
 
@@ -421,7 +423,6 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 	switch s := i.(type) {
 	case *GoExprWithPath:
 		return o.goAstToSchema(s)
-		//return o.goAstToSchema(s.expr, s.path)
 	case []interface{}:
 		if len(s) == 0 {
 			item, err := o.anyToSchema(nil)
@@ -429,8 +430,8 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 				return nil, err
 			}
 			return &ArraySchema{
-				Type:  "array",
-				Items: item,
+				Type:     "array",
+				Items:    item,
 				IsSchema: true,
 			}, nil
 		}
@@ -439,8 +440,8 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			return nil, err
 		}
 		return &ArraySchema{
-			Type:  "array",
-			Items: item,
+			Type:     "array",
+			Items:    item,
 			IsSchema: true,
 		}, nil
 	case map[string]interface{}:
@@ -472,30 +473,30 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 		return &ObjectSchema{
 			Type:       "object",
 			Properties: props,
-			IsSchema: true,
+			IsSchema:   true,
 		}, nil
 	case string:
 		return &IdentSchema{
-			Type: "string",
-			Default: s,
+			Type:     "string",
+			Default:  s,
 			IsSchema: true,
 		}, nil
 	case int64, int:
 		return &IdentSchema{
-			Type: "int",
-			Default: s,
+			Type:     "int",
+			Default:  s,
 			IsSchema: true,
 		}, nil
 	case nil:
 		return &ObjectSchema{
 			Type:       "null",
 			Properties: nil,
-			IsSchema: true,
+			IsSchema:   true,
 		}, nil
 	case bool:
 		return &IdentSchema{
-			Type:    "boolean",
-			Default: s,
+			Type:     "boolean",
+			Default:  s,
 			IsSchema: true,
 		}, nil
 	default:
