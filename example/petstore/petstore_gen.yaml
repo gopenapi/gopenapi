@@ -79,21 +79,7 @@ paths:
       - api_key: []
   /pet:
     post:
-      summary: PutPet Update pet by ID
-      description: ""
-      responses:
-        "200":
-          description: 返回新的Pet
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pet'
-      requestBody:
-        description: body
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Pet'
+      x-$path: 'gopenapi-err, can''t resolve path: github.com/zbysir/gopenapi/internal/delivery/http/handlerxx.PetHandler.PutPet'
       tags:
       - pet
 components:

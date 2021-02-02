@@ -55,9 +55,12 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 		return
 	}
 
-	defs, _, err := g.parseAll.parse(pkgDir)
+	defs, _, exist, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, false, err
+	}
+	if !exist {
+		return
 	}
 
 	// 如果key包含了., 说明还需要查询子方法
@@ -104,9 +107,12 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 		return
 	}
 
-	_, let, err := g.parseAll.parse(pkgDir)
+	_, let, exist, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, err
+	}
+	if !exist {
+		return
 	}
 	enum = &Enum{
 		Type:   typ,
@@ -132,9 +138,12 @@ func (g *GoParse) GetStructFunc(pkgDir string, typName string) (enum map[string]
 		return
 	}
 
-	defs, _, err := g.parseAll.parse(pkgDir)
+	defs, _, exist, err := g.parseAll.parse(pkgDir)
 	if err != nil {
 		return nil, err
+	}
+	if !exist {
+		return
 	}
 
 	enum = map[string]*Def{}

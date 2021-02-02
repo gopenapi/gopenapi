@@ -190,7 +190,8 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 		// - params: for parameters of openapi
 		// - schema: for schemas of openapi
 		// - body: for requestBody of openapi
-		if name == "params" {
+		switch name {
+		case "params":
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
 				switch s := stru.(type) {
@@ -212,44 +213,26 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 				//   params([{name: 'status', schema: 'string'}])
 				return stru, nil
 			}, nil
-		} else if name == "body" {
-			return func(args ...interface{}) (interface{}, error) {
-				stru := args[0]
-				switch s := stru.(type) {
-				case nil:
-					return nil, nil
-				case *GoExprWithPath:
-					// case for body(model.FindPetByStatusParams) syntax:
-					g, _, err := o.getGoStruct(s.key, nil)
-					if err != nil {
-						return nil, err
-					}
-					return g, nil
-				}
-				// case for non-go syntax. e.g.:
-				//   body({desc: "Pet object that needs to be added to the store", schema: {$ref: '#/components/schemas/Pet'})
-				return stru, nil
-			}, nil
-		} else if name == "schema" {
+		case "schema":
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
 				return o.anyToSchema(stru)
 			}, nil
-		}
+		default:
+			// 获取当前文件所有引入的包
+			pkgs, err := o.goparse.GetFileImportPkg(goFilePath)
+			if err != nil {
+				return nil, err
+			}
 
-		// 获取当前文件所有引入的包
-		pkgs, err := o.goparse.GetFileImportPkg(goFilePath)
-		if err != nil {
-			return nil, err
-		}
-
-		// 判断name是否是pkg
-		if pkg, ispkg := pkgs[name]; ispkg {
-			// 如果是pkg, 则进入解析go源码流程
-			return &PkgGetter{
-				goparse: o.goparse,
-				pkg:     pkg,
-			}, nil
+			// 判断name是否是pkg
+			if pkg, ispkg := pkgs[name]; ispkg {
+				// 如果是pkg, 则进入解析go源码流程
+				return &PkgGetter{
+					goparse: o.goparse,
+					pkg:     pkg,
+				}, nil
+			}
 		}
 
 		return nil, nil
@@ -820,9 +803,10 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 					return nil, err
 				}
 				if !exist {
+					log.Warningf("error at %s : can't resolve path: %s", strings.Join(keyRouter, "."), v)
 					out = append(out, yaml.MapItem{
 						Key:   key,
-						Value: "gopenapi-err: can't resolve path",
+						Value: fmt.Sprintf("gopenapi-err, can't resolve path: %s", v),
 					})
 					continue
 				}

@@ -58,11 +58,11 @@ type cacheStruct struct {
 // 返回:
 //	defs: 所有的类型定义(包括方法)
 //	let: 所有的变量/常量
-func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err error) {
+func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, exist bool, err error) {
 	v, ok := p.cache.Load(path)
 	if ok {
 		s := v.(*cacheStruct)
-		return s.defs, s.let, nil
+		return s.defs, s.let, true, nil
 	}
 	defer func() {
 		if err != nil {
@@ -76,8 +76,13 @@ func (p *parseAll) parse(path string) (defs map[string]*Def, let []*Let, err err
 	fs := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fs, path, nil, parser.ParseComments|parser.AllErrors)
 	if err != nil {
+		if strings.Contains(err.Error(), "The system cannot find the file specified.") {
+			return nil, nil, false, nil
+		}
 		return
 	}
+
+	exist = true
 
 	defs = map[string]*Def{}
 
