@@ -214,11 +214,12 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 	for _, imp := range f.Imports {
 		importPath := strings.Trim(imp.Path.Value, `"'`)
 
-		p, exist, err := g.gosrc.GetAbsPath(importPath)
+		p, isInProject, err := g.gosrc.GetAbsPath(importPath)
 		if err != nil {
 			return nil, err
 		}
-		if !exist {
+		// 不处理非本项目的包
+		if !isInProject {
 			continue
 		}
 

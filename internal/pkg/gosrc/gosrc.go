@@ -44,15 +44,24 @@ func NewGoSrcFromModFile(modFile string) (*GoSrc, error) {
 
 // 获取文件的绝对路径
 // e.g.
-// path: github.com/zbysir/gopenapi/internal/model, returned: Z:\golang\go_project\gopenapi\internal\model
-// path: github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
-func (s *GoSrc) GetAbsPath(path string) (absDir string, exist bool, err error) {
-	if !strings.HasPrefix(path, s.ModuleName) {
-		return
+//   path: github.com/zbysir/gopenapi/internal/model, returned: Z:\golang\go_project\gopenapi\internal\model
+//   path: github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
+//   path: ./internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
+// return:
+//   isInProject: 是否是本项目的地址
+func (s *GoSrc) GetAbsPath(path string) (absDir string, isInProject bool, err error) {
+	if filepath.IsAbs(path) {
+		return path, true, nil
 	}
 
-	absDir = filepath.Clean(strings.ReplaceAll(path, s.ModuleName, s.AbsModuleFileDir))
-	exist = true
+	if strings.HasPrefix(path, s.ModuleName) {
+		absDir = filepath.Clean(strings.ReplaceAll(path, s.ModuleName, s.AbsModuleFileDir))
+		isInProject = true
+	} else if strings.HasPrefix(path, "./") {
+		absDir = filepath.Clean(filepath.Join(s.AbsModuleFileDir, path))
+		isInProject = true
+	}
+
 	return
 }
 
@@ -67,15 +76,12 @@ func (s *GoSrc) GetPkgPath(absPath string) (pkgPath string, err error) {
 }
 
 func (s *GoSrc) MustGetAbsPath(path string) (absDir string, err error) {
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
-	absDir, eixst, err := s.GetAbsPath(path)
+	absDir, isInProject, err := s.GetAbsPath(path)
 	if err != nil {
 		return
 	}
-	if !eixst {
-		err = fmt.Errorf("can't resove path: '%s', please ensure it starts with '%s'", path, s.ModuleName)
+	if !isInProject {
+		err = fmt.Errorf("can't resove path: '%s', please ensure it starts with '%s' or './'", path, s.ModuleName)
 		return
 	}
 	return

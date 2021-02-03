@@ -52,7 +52,7 @@ paths:
         - api_key: []
   /pet:
     post:
-      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.PutPet
+      x-$path: ./internal/delivery/http/handler.PetHandler.PutPet
       tags:
         - pet
 
