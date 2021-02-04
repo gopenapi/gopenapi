@@ -73,7 +73,7 @@ type AnyPropForJson struct {
 	// ref:
 	//  https://swagger.io/docs/specification/data-models/data-types/
 	//  https://swagger.io/docs/specification/data-models/oneof-anyof-allof-not/
-	Oneof       []interface{}        `json:"oneof"`
+	OneOf       []interface{}        `json:"oneOf"`
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Description string               `json:"description,omitempty"`
 	Tag         map[string]string    `json:"tag,omitempty"`
@@ -118,7 +118,7 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 	case *AnySchema:
 		any := AnyPropForJson{
 			AnySchema: s,
-			Oneof: []interface{}{
+			OneOf: []interface{}{
 				map[string]interface{}{"type": "array"},
 				map[string]interface{}{"type": "boolean"},
 				map[string]interface{}{"type": "integer"},
