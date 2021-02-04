@@ -140,7 +140,6 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	}
 
 	return &OpenApi{
-
 		goparse:  p,
 		jsConfig: newCode,
 		schemas:  map[string]string{},
@@ -220,7 +219,7 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 			}, nil
 		default:
 			// 获取当前文件所有引入的包
-			pkgs, err := o.goparse.GetFileImportPkg(goFilePath)
+			pkgs, err := o.goparse.GetFileImportedPkgs(goFilePath)
 			if err != nil {
 				return nil, err
 			}
@@ -460,6 +459,7 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 
 	def, exist, err := o.goparse.GetDef(p, k)
 	if err != nil {
+		err = fmt.Errorf("GetDef error: %w", err)
 		return
 	}
 	if !exist {
@@ -468,6 +468,7 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 
 	g, err = o.parseGoDoc(def.Doc.Text(), def.File)
 	if err != nil {
+		err = fmt.Errorf("parseGoDoc error: %w", err)
 		return
 	}
 
@@ -488,6 +489,7 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 		}
 		g.Schema, err = o.goAstToSchema(expr)
 		if err != nil {
+			err = fmt.Errorf("toSchema error: %w", err)
 			return
 		}
 	}
@@ -586,31 +588,6 @@ func (p ParamsList) ToYaml(useTag string) interface{} {
 	return r
 }
 
-type Schema interface {
-	_schema()
-	GetType() string
-}
-
-type ArraySchema struct {
-	Type     string `json:"type"`
-	Items    Schema `json:"items"`
-	IsSchema bool   `json:"_schema"`
-}
-
-func (a *ArraySchema) GetType() string {
-	return a.Type
-}
-
-type RefSchema struct {
-	Ref      string `json:"$ref"`
-	IsSchema bool   `json:"_schema"`
-}
-
-func (r *RefSchema) _schema() {}
-
-func (r *RefSchema) GetType() string {
-	return ""
-}
 
 // TODO 使用js脚本让用户可以自己写逻辑
 // 将元数据转成openapi.params
@@ -730,10 +707,16 @@ func walkYamlItem(kv []yaml.MapItem, wantKeys []string, walkedKeys []string, cb 
 func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
 	walkYamlItem(kv, []string{"components", "schemas", "*", "x-$schema"}, nil, func(key []string, i yaml.MapItem) {
 		schemaKey := strings.Join(key, "/")
-		// TODO 有可能不是字符串, 这是不正确的, 需要给友好错误提示
-		v := i.Value.(string)
+		pat, ok := i.Value.(string)
+		if !ok {
+			return
+		}
 
-		o.schemas[v] = schemaKey
+		pat, inProject := o.goparse.FormatPath(pat)
+		if !inProject {
+			return
+		}
+		o.schemas[pat] = schemaKey
 	})
 	return
 }
@@ -800,6 +783,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 			if v, ok := item.Value.(string); ok {
 				g, exist, err := o.getGoStruct(v, keyRouter)
 				if err != nil {
+					err = fmt.Errorf("full yaml '%s' fail\n  %w", strings.Join(keyRouter, "."), err)
 					return nil, err
 				}
 				if !exist {

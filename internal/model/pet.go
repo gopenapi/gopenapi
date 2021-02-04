@@ -14,6 +14,9 @@ type Pet struct {
 
 	// PetStatus
 	Status PetStatus `json:"status"`
+
+	// test interface
+	X interface{} `json:"x"`
 }
 
 type Pets []Pet

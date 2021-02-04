@@ -32,7 +32,7 @@ func TestGetFileImportPkg(t *testing.T) {
 	}
 	p := NewGoParse(goSrc)
 
-	pkgs, err := p.GetFileImportPkg("github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+	pkgs, err := p.GetFileImportedPkgs("github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestGetStructFunc(t *testing.T) {
 	}
 	p := NewGoParse(goSrc)
 
-	pkgs, err := p.GetStructFunc("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
+	pkgs, err := p.GetFuncOfStruct("github.com/zbysir/gopenapi/internal/delivery/http/handler", "PetHandler")
 	if err != nil {
 		t.Fatal(err)
 	}

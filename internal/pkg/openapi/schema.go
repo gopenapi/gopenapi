@@ -10,6 +10,10 @@ import (
 	"sort"
 )
 
+type Schema interface {
+	_schema()
+}
+
 type ObjectSchema struct {
 	Ref        string               `json:"$ref,omitempty"`
 	Type       string               `json:"type"`
@@ -18,10 +22,6 @@ type ObjectSchema struct {
 }
 
 func (o *ObjectSchema) _schema() {}
-
-func (a *ObjectSchema) GetType() string {
-	return a.Type
-}
 
 // ObjectProp 对象成员
 type ObjectProp struct {
@@ -71,6 +71,18 @@ type RefPropForJson struct {
 	Tag map[string]string `json:"tag,omitempty"`
 }
 
+type AnyPropForJson struct {
+	*AnySchema
+	// 将会使用openapi的oneof语法指定 any type
+	// ref:
+	//  https://swagger.io/docs/specification/data-models/data-types/
+	//  https://swagger.io/docs/specification/data-models/oneof-anyof-allof-not/
+	Oneof       []interface{}        `json:"oneof"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Tag         map[string]string    `json:"tag,omitempty"`
+}
+
 func (o ObjectProp) MarshalJSON() ([]byte, error) {
 	switch s := o.Schema.(type) {
 	case *ObjectSchema:
@@ -111,11 +123,50 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Ref:       s.Ref,
 			Tag:       o.Tag,
 		})
+	case *AnySchema:
+		any := AnyPropForJson{
+			AnySchema: s,
+			Oneof: []interface{}{
+				map[string]interface{}{"type": "array"},
+				map[string]interface{}{"type": "boolean"},
+				map[string]interface{}{"type": "integer"},
+				map[string]interface{}{"type": "number"},
+				map[string]interface{}{"type": "object"},
+				map[string]interface{}{"type": "string"},
+			},
+			Meta:        o.Meta,
+			Description: o.Description,
+			Tag:         o.Tag,
+		}
+		return json.Marshal(any)
 	default:
 		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
 	}
 
 	return nil, nil
+}
+
+type ArraySchema struct {
+	Type     string `json:"type"`
+	Items    Schema `json:"items"`
+	IsSchema bool   `json:"_schema"`
+}
+
+func (a *ArraySchema) GetType() string {
+	return a.Type
+}
+
+func (a *ArraySchema) _schema() {}
+
+type RefSchema struct {
+	Ref      string `json:"$ref"`
+	IsSchema bool   `json:"_schema"`
+}
+
+func (r *RefSchema) _schema() {}
+
+func (r *RefSchema) GetType() string {
+	return ""
 }
 
 // 基础类型, string / int
@@ -145,7 +196,13 @@ func (n NilSchema) GetType() string {
 	return "nil"
 }
 
-func (a *ArraySchema) _schema() {}
+type AnySchema struct {
+	IsSchema bool `json:"_schema,omitempty"`
+	IsAny    bool `json:"x-any,omitempty"`
+}
+
+func (n AnySchema) _schema() {
+}
 
 //type Expr struct {
 //	// 表达式, 如 model.Pet
@@ -173,12 +230,12 @@ func (expr *GoExprWithPath) Key() (string, error) {
 		}
 
 		// 当前包的结构体
-		return expr.goparse.GetPkgFile(expr.file) + "." + s.Name, nil
+		return expr.goparse.GetPkgOfFile(expr.file) + "." + s.Name, nil
 	case *ast.SelectorExpr:
 		// for model.T syntax
 		pkgName := s.X.(*ast.Ident).Name
 
-		pkgs, err := expr.goparse.GetFileImportPkg(expr.file)
+		pkgs, err := expr.goparse.GetFileImportedPkgs(expr.file)
 		if err != nil {
 			return "", err
 		}
@@ -191,6 +248,10 @@ func (expr *GoExprWithPath) Key() (string, error) {
 	case *ast.StarExpr:
 		expr.expr = s.X
 		return expr.Key()
+	case *ast.InterfaceType:
+		// 不处理interface
+		// 不支持处理interface的关联关系(ref).
+		return "", nil
 	default:
 		panic(fmt.Sprintf("uncase Type of GetExprKey: %T", expr.expr))
 	}
@@ -245,7 +306,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 				IsSchema: true,
 			}, nil
 		}
-		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgFile(expr.file), s.Name)
+		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgOfFile(expr.file), s.Name)
 		// 获取当前包下的结构体
 		if err != nil {
 			return nil, err
@@ -270,7 +331,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		// 如果是基础类型, 则需要获取枚举值
 		if id, ok := schema.(*IdentSchema); ok {
 			// 查找Enum
-			enum, err := o.goparse.GetEnum(o.goparse.GetPkgFile(expr.file), s.Name)
+			enum, err := o.goparse.GetEnum(o.goparse.GetPkgOfFile(expr.file), s.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -286,7 +347,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		// for model.T syntax
 		pkgName := s.X.(*ast.Ident).Name
 
-		pkgs, err := o.goparse.GetFileImportPkg(expr.file)
+		pkgs, err := o.goparse.GetFileImportedPkgs(expr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -350,6 +411,11 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			Properties: props,
 			IsSchema:   true,
 		}, nil
+	case *ast.InterfaceType:
+		return &AnySchema{
+			IsSchema: true,
+			IsAny:    true,
+		}, nil
 	default:
 		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
 	}
@@ -397,7 +463,7 @@ func (g *GoExprWithPath) GetMember(k string) interface{} {
 	}
 
 	// 查找方法
-	funcs, err := g.goparse.GetStructFunc(g.goparse.GetPkgFile(g.file), g.name)
+	funcs, err := g.goparse.GetFuncOfStruct(g.goparse.GetPkgOfFile(g.file), g.name)
 	if err != nil {
 		return nil
 	}

@@ -79,7 +79,7 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 	}
 
 	if len(kk) > 1 {
-		funcs, err := g.GetStructFunc(pkgDir, kk[0])
+		funcs, err := g.GetFuncOfStruct(pkgDir, kk[0])
 		if err != nil {
 			return nil, false, err
 		}
@@ -131,8 +131,8 @@ func (g *GoParse) GetEnum(pkgDir string, typ string) (enum *Enum, err error) {
 	return
 }
 
-// GetStructFunc 获取结构体上的func
-func (g *GoParse) GetStructFunc(pkgDir string, typName string) (enum map[string]*Def, err error) {
+// GetFuncOfStruct 获取结构体上的func
+func (g *GoParse) GetFuncOfStruct(pkgDir string, typName string) (enum map[string]*Def, err error) {
 	pkgDir, err = g.gosrc.MustGetAbsPath(pkgDir)
 	if err != nil {
 		return
@@ -172,6 +172,7 @@ func (g *GoParse) GetStructFunc(pkgDir string, typName string) (enum map[string]
 	return
 }
 
+// FirstValue 返回第一个枚举值, 一般用作default值.
 func (e *Enum) FirstValue() (string, interface{}) {
 	if e == nil {
 		return "", nil
@@ -195,10 +196,10 @@ type Pkg struct {
 // 暂时不支持.的处理
 type Pkgs map[string]*Pkg
 
-// GetFileImportPkg 获取文件中所有导入的包.
+// GetFileImportedPkgs 获取文件中所有导入的包.
 // Tips: 目前只支持获取文件中导入的**本项目**的其他包.
 // goFilePath: github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go
-func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
+func (g *GoParse) GetFileImportedPkgs(filePath string) (pkgs Pkgs, err error) {
 	absPath, err := g.gosrc.MustGetAbsPath(filePath)
 	if err != nil {
 		return
@@ -245,13 +246,17 @@ func (g *GoParse) GetFileImportPkg(filePath string) (pkgs Pkgs, err error) {
 	return
 }
 
-// GetPkgFile 获取文件所在的pkg
+// GetPkgOfFile 获取文件所在的pkg
 // github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go 返回 github.com/zbysir/gopenapi/internal/delivery/http/handler
-func (g *GoParse) GetPkgFile(filePath string) (pkg string) {
+func (g *GoParse) GetPkgOfFile(filePath string) (pkg string) {
 	x := strings.LastIndexByte(filePath, '/')
 	if x == -1 {
 		return filePath
 	}
 
 	return filePath[:x]
+}
+
+func (g *GoParse) FormatPath(path string) (fp string, isInProject bool) {
+	return g.gosrc.FormatPath(path)
 }

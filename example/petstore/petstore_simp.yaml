@@ -61,7 +61,7 @@ components:
     Category:
       x-$schema: github.com/zbysir/gopenapi/internal/model.Category
     Tag:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Tag
+      x-$schema: ./internal/model.Tag
     Pet:
       x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
       required:

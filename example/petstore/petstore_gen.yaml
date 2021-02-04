@@ -136,6 +136,16 @@ components:
           - pending
           - sold
           description: PetStatus
+        x:
+          x-any: true
+          oneof:
+          - type: array
+          - type: boolean
+          - type: integer
+          - type: number
+          - type: object
+          - type: string
+          description: test interface
       required:
       - name
       - photoUrls

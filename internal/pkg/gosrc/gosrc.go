@@ -53,14 +53,13 @@ func (s *GoSrc) GetAbsPath(path string) (absDir string, isInProject bool, err er
 	if filepath.IsAbs(path) {
 		return path, true, nil
 	}
-
-	if strings.HasPrefix(path, s.ModuleName) {
-		absDir = filepath.Clean(strings.ReplaceAll(path, s.ModuleName, s.AbsModuleFileDir))
-		isInProject = true
-	} else if strings.HasPrefix(path, "./") {
-		absDir = filepath.Clean(filepath.Join(s.AbsModuleFileDir, path))
-		isInProject = true
+	fp, isInProject := s.FormatPath(path)
+	if !isInProject {
+		return
 	}
+
+	absDir = filepath.Clean(strings.ReplaceAll(fp, s.ModuleName, s.AbsModuleFileDir))
+	isInProject = true
 
 	return
 }
@@ -84,5 +83,18 @@ func (s *GoSrc) MustGetAbsPath(path string) (absDir string, err error) {
 		err = fmt.Errorf("can't resove path: '%s', please ensure it starts with '%s' or './'", path, s.ModuleName)
 		return
 	}
+	return
+}
+
+// FormatPath 会格式化用户在yaml中写的路径为规范路径(即包含module名字的完整路径)
+func (s *GoSrc) FormatPath(path string) (fp string, isInProject bool) {
+	if strings.HasPrefix(path, s.ModuleName) {
+		fp = path
+		isInProject = true
+	} else if strings.HasPrefix(path, "./") {
+		fp = s.ModuleName + path[1:]
+		isInProject = true
+	}
+
 	return
 }
