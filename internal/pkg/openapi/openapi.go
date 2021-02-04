@@ -159,7 +159,10 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		return nil
 	}
 	if !exist {
-		return nil
+		return &NotFoundGoExpr{
+			key: k,
+			pkg: p.pkg.Dir,
+		}
 	}
 	return &GoExprWithPath{
 		goparse: p.goparse,
@@ -413,7 +416,7 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 				jsCode := strings.Trim(v[3:], " ")
 				v, err := o.runJsExpress(jsCode, filename)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("run js express fail: %w", err)
 				}
 
 				r = append(r, yaml.MapItem{
@@ -587,7 +590,6 @@ func (p ParamsList) ToYaml(useTag string) interface{} {
 
 	return r
 }
-
 
 // TODO 使用js脚本让用户可以自己写逻辑
 // 将元数据转成openapi.params

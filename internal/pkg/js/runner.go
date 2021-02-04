@@ -131,7 +131,10 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 		case MemberGetter:
 			return left.GetMember(id), nil
 		default:
-			return nil, nil
+			// TODO 非严格模式
+			// 思考: 非严格模式实际上可以不要
+			pkgName:=r.source[e.Idx0()-1:e.Left.Idx1()-1]
+			return nil, fmt.Errorf("can't read '%s' of type '%T' at script '%s', please make sure you import '%s' package", id, left, r.source[e.Idx0()-1:e.Idx1()-1], pkgName)
 		}
 
 	case *ast.CallExpression:

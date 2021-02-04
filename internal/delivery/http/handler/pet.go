@@ -84,7 +84,7 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 // $:
 //    js-body: "schema(model.Pet)"
 //    js-response: |
-//     {200: {schema: schema(model.Pet), desc:"返回新的Pet"}}
+//     {200: {schema: schema(modexl.Pet), desc:"返回新的Pet"}}
 //
 func (h *PetHandler) PutPet(ctx *gin.Context) {
 	var p model.GetPetById

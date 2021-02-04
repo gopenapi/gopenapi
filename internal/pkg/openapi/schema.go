@@ -18,7 +18,7 @@ type ObjectSchema struct {
 	Ref        string               `json:"$ref,omitempty"`
 	Type       string               `json:"type"`
 	Properties jsonordered.MapSlice `json:"properties"`
-	IsSchema   bool                 `json:"_schema,omitempty"`
+	IsSchema   bool                 `json:"x-schema,omitempty"`
 }
 
 func (o *ObjectSchema) _schema() {}
@@ -57,12 +57,8 @@ type IdentPropForJson struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-type NilPropForJson struct {
-	*NilSchema
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-	Example     interface{}          `json:"example,omitempty"`
+type ErrPropForJson struct {
+	*ErrSchema
 }
 
 type RefPropForJson struct {
@@ -109,13 +105,9 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 			Tag:         o.Tag,
 			Example:     o.Example,
 		})
-	case *NilSchema:
-		return json.Marshal(NilPropForJson{
-			NilSchema:   s,
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
+	case *ErrSchema:
+		return json.Marshal(ErrPropForJson{
+			ErrSchema: s,
 		})
 	case *RefSchema:
 		return json.Marshal(RefPropForJson{
@@ -149,7 +141,7 @@ func (o ObjectProp) MarshalJSON() ([]byte, error) {
 type ArraySchema struct {
 	Type     string `json:"type"`
 	Items    Schema `json:"items"`
-	IsSchema bool   `json:"_schema"`
+	IsSchema bool   `json:"x-schema"`
 }
 
 func (a *ArraySchema) GetType() string {
@@ -160,7 +152,7 @@ func (a *ArraySchema) _schema() {}
 
 type RefSchema struct {
 	Ref      string `json:"$ref"`
-	IsSchema bool   `json:"_schema"`
+	IsSchema bool   `json:"x-schema"`
 }
 
 func (r *RefSchema) _schema() {}
@@ -176,7 +168,7 @@ type IdentSchema struct {
 	Type     string        `json:"type"`
 	Default  interface{}   `json:"default,omitempty"`
 	Enum     []interface{} `json:"enum,omitempty"`
-	IsSchema bool          `json:"_schema,omitempty"`
+	IsSchema bool          `json:"x-schema,omitempty"`
 }
 
 func (a *IdentSchema) GetType() string {
@@ -185,19 +177,16 @@ func (a *IdentSchema) GetType() string {
 
 func (s *IdentSchema) _schema() {}
 
-type NilSchema struct {
-	IsSchema bool `json:"_schema,omitempty"`
+type ErrSchema struct {
+	IsSchema bool   `json:"x-schema,omitempty"`
+	Error    string `json:"x-error,omitempty"`
 }
 
-func (n NilSchema) _schema() {
-}
-
-func (n NilSchema) GetType() string {
-	return "nil"
+func (n ErrSchema) _schema() {
 }
 
 type AnySchema struct {
-	IsSchema bool `json:"_schema,omitempty"`
+	IsSchema bool `json:"x-schema,omitempty"`
 	IsAny    bool `json:"x-any,omitempty"`
 }
 
@@ -312,8 +301,11 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			return nil, err
 		}
 		if !exist {
-			log.Warningf("can't found Type: %s", s.Name)
-			return &NilSchema{}, nil
+			msg := fmt.Sprintf("can't found Type: %s", s.Name)
+			log.Warning(msg)
+			return &ErrSchema{
+				Error: msg,
+			}, nil
 		}
 
 		schema, err := o.goAstToSchema(&GoExprWithPath{
@@ -358,7 +350,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 				pkg:     pkg,
 			}.GetStruct(s.Sel.Name)
 			if err != nil || !exist {
-				return &NilSchema{}, err
+				return &ErrSchema{}, err
 			}
 
 			schema, err := o.goAstToSchema(&GoExprWithPath{
@@ -372,7 +364,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			return schema, err
 		}
 
-		return &NilSchema{}, nil
+		return &ErrSchema{}, nil
 	case *ast.StructType:
 		var props jsonordered.MapSlice
 
@@ -420,9 +412,17 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
 	}
 
-	return &NilSchema{
+	return &ErrSchema{
 		IsSchema: true,
 	}, nil
+}
+
+// NotFoundGoExpr 用于表示没有找到Go表达式
+//  如 schema(apkg.xxx), 如果apkg中没有找到xxx, 则会返回 NotFoundGoExpr
+//  不返回nil的原因是需要有更多的信息用于友好提示
+type NotFoundGoExpr struct {
+	key string
+	pkg string
 }
 
 type GoExprWithPath struct {
@@ -553,17 +553,28 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			Default:  s,
 			IsSchema: true,
 		}, nil
-	case nil:
-		return &ObjectSchema{
-			Type:       "null",
-			Properties: nil,
-			IsSchema:   true,
-		}, nil
 	case bool:
 		return &IdentSchema{
 			Type:     "boolean",
 			Default:  s,
 			IsSchema: true,
+		}, nil
+	//case nil:
+	//	// 如果传递的是nil, 则返回空对象
+	//	return &ObjectSchema{
+	//		Type:       "object",
+	//		Properties: nil,
+	//		IsSchema:   true,
+	//	}, nil
+	case *NotFoundGoExpr:
+		return &ErrSchema{
+			IsSchema: true,
+			Error:    fmt.Sprintf("can't found definition '%s' in pkg '%s'", s.key, s.pkg),
+		}, nil
+	case error:
+		return &ErrSchema{
+			IsSchema: true,
+			Error:    s.Error(),
 		}, nil
 	default:
 		panic(fmt.Sprintf("uncased type2Schema type: %T, %+v", s, s))

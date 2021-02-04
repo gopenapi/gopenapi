@@ -4,7 +4,7 @@ export default {
       case 'x-$path': {
         let responses = {}
         if (value.meta.response) {
-          if (value.meta.response._schema) {
+          if (value.meta.response['x-schema']) {
             // for schema(xxx) syntax
             responses = {
               "200": {
@@ -31,7 +31,7 @@ export default {
                 }
               } else {
                 let schema
-                if (v._schema) {
+                if (v['x-schema']) {
                   schema = v
                 } else {
                   schema = v.schema
@@ -92,7 +92,7 @@ export default {
 
         let body
         if (value.meta.body) {
-          if (value.meta.body._schema) {
+          if (value.meta.body['x-schema']) {
             // for schema(xxx) syntax
             body = {
               description: 'body',
@@ -105,7 +105,7 @@ export default {
           } else {
             let v = value.meta.body
             let schema
-            if (v._schema) {
+            if (v['x-schema']) {
               schema = v
             } else {
               schema = v.schema
@@ -166,7 +166,7 @@ function processSchema(s) {
     s.items = processSchema(s.items)
   }
 
-  delete s['_schema']
+  delete s['x-schema']
 
   return s
 }
