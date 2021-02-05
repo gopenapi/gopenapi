@@ -16,9 +16,9 @@ func TestXPathToOpenapi(t *testing.T) {
 		Meta: map[string]interface{}{
 			"parameters": ParamsList{
 				{
-					Name: "Status",
-					Tag:  map[string]string{"json": "status"},
-					Doc:  "Status values that need to be considered for filter",
+					Name:        "Status",
+					Tag:         map[string]string{"json": "status"},
+					Description: "Status values that need to be considered for filter",
 					Schema: &ArraySchema{
 						Type: "array",
 						Items: &IdentSchema{
@@ -94,7 +94,8 @@ func TestToSchema(t *testing.T) {
 }
 
 func TestAnyToSchema(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
+	// todo add more test cases
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,15 @@ func TestAnyToSchema(t *testing.T) {
 		return
 	}
 
-	s, err := openAPi.anyToSchema(def)
+	s, err := openAPi.anyToSchema(&GoExprWithPath{
+		goparse: openAPi.goparse,
+		expr:    def.Type,
+		doc:     def.Doc,
+		file:    def.File,
+		name:    def.Name,
+		key:     def.Key,
+		noRef:   false,
+	})
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -134,7 +143,10 @@ $path:
 	if err != nil {
 		t.Fatal(err)
 	}
-	x := openAPi.fullCommentMetaToJson(kv, "")
+	x, err := openAPi.fullCommentMeta(kv, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	bs, err := json.MarshalIndent(x, "  ", "  ")
 	if err != nil {
 		t.Fatal(err)
