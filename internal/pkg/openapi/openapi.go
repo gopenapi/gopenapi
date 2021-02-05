@@ -285,10 +285,9 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 				From:        "go",
 				Name:        name,
 				Tag:         encodeTag(f.Tag),
-				Doc:         gd.FullDoc,
+				Description: gd.FullDoc,
 				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
 				Schema:      schema,
-				Description: gd.Description,
 			})
 		}
 	default:
@@ -531,7 +530,6 @@ type ParamsItem struct {
 	From        string               `json:"_from"`
 	Name        string               `json:"name"`
 	Tag         map[string]string    `json:"tag"`
-	Doc         string               `json:"doc"`
 	Description string               `json:"description"`
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Schema      Schema               `json:"schema"`
@@ -560,7 +558,7 @@ func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {
 	}
 	r = append(r, yaml.MapItem{
 		Key:   "description",
-		Value: t.Doc,
+		Value: t.Description,
 	})
 	required, exist := t.Meta.Get("required")
 	if exist {

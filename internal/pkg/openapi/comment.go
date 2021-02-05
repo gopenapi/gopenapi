@@ -13,9 +13,9 @@ type GoStruct struct {
 	// FullDoc 是整个注释(除去变量部分)
 	FullDoc string `json:"doc"`
 
-	// Doc的第一句
+	// FullDoc的第一句
 	Summary string `json:"summary"`
-	// Doc的剩余
+	// FullDoc除了第一个的剩下注释
 	Description string `json:"description"`
 
 	// Meta 是变量部分, 应该使用json序列化后(给js脚本)使用
