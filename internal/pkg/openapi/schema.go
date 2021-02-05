@@ -547,9 +547,15 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			Default:  s,
 			IsSchema: true,
 		}, nil
-	case int64, int:
+	case int64, int, int8, int32, uint, uint64, uint32, uint8:
 		return &IdentSchema{
-			Type:     "int",
+			Type:     "integer",
+			Default:  s,
+			IsSchema: true,
+		}, nil
+	case float64, float32:
+		return &IdentSchema{
+			Type:     "number",
 			Default:  s,
 			IsSchema: true,
 		}, nil

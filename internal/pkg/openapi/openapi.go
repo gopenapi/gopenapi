@@ -282,12 +282,13 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 			}
 
 			l = append(l, ParamsItem{
-				From:   "go",
-				Name:   name,
-				Tag:    encodeTag(f.Tag),
-				Doc:    gd.FullDoc,
-				Meta:   mergeJsonMap(parentGoDoc.Meta, gd.Meta),
-				Schema: schema,
+				From:        "go",
+				Name:        name,
+				Tag:         encodeTag(f.Tag),
+				Doc:         gd.FullDoc,
+				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
+				Schema:      schema,
+				Description: gd.Description,
 			})
 		}
 	default:
@@ -527,12 +528,13 @@ type XData struct {
 // 从go结构体能读出的数据, 用于parameters
 type ParamsItem struct {
 	// From 表示此item来至那, 如 go
-	From   string               `json:"_from"`
-	Name   string               `json:"name"`
-	Tag    map[string]string    `json:"tag"`
-	Doc    string               `json:"doc"`
-	Meta   jsonordered.MapSlice `json:"meta,omitempty"`
-	Schema Schema               `json:"schema"`
+	From        string               `json:"_from"`
+	Name        string               `json:"name"`
+	Tag         map[string]string    `json:"tag"`
+	Doc         string               `json:"doc"`
+	Description string               `json:"description"`
+	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
+	Schema      Schema               `json:"schema"`
 }
 
 func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {
