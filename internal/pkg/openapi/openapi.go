@@ -170,7 +170,7 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		doc:     def.Doc,
 		file:    def.File,
 		name:    def.Name,
-		key:     def.Key,
+		//key:     def.Key,
 		noRef:   false,
 	}
 }
