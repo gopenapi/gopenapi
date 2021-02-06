@@ -2,10 +2,12 @@ package openapi
 
 import (
 	"encoding/json"
-	"github.com/dop251/goja"
+	"github.com/zbysir/gopenapi/internal/model"
+	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -64,7 +66,7 @@ func TestCompleteOpenapi(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bs, err := ioutil.ReadFile("../../../openapi/petstore_simp.yaml")
+	bs, err := ioutil.ReadFile("../../../example/petstore/petstore_simp.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,38 +95,120 @@ func TestToSchema(t *testing.T) {
 	t.Logf("%s", bs)
 }
 
+type SchemaTestStruct struct {
+	A string `json:"a"`
+	B int    `json:"b"`
+	C interface{}
+	D struct {
+		D1 int64 `json:"d_1"`
+	}
+}
+
+type SchemaTestStructNested struct {
+	*SchemaTestStruct
+	E int
+}
+
+// https://stackoverflow.com/questions/36866035/how-to-refer-to-enclosing-type-definition-recursively-in-openapi-swagger
+type PageTree struct {
+	Id        int64 `json:"id" xorm:"pk autoincr int(11)"`
+	ProjectId int64 `json:"project_id" xorm:"int(11) unique index"`
+
+	PageIdTree PageIdTree `json:"content_id_tree" xorm:"json"`
+
+	*model.Categorys
+}
+
+type PageIdTree struct {
+	Id       int64         `json:"id"`
+	Children []*PageIdTree `json:"children"`
+}
+
 func TestAnyToSchema(t *testing.T) {
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var x interface{}
+
+	// expect: panic
+	s, err := openAPi.anyToSchema(x)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("%+v", s)
+}
+
+func TestGoToSchema(t *testing.T) {
 	// todo add more test cases
 	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	def, exist, err := openAPi.goparse.GetDef("github.com/zbysir/gopenapi/internal/model/modelt", "Pet")
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-	if !exist {
-		t.Fatal("not exist")
-		return
+	cases := []struct {
+		k        string
+		wantKeys []string
+	}{
+		//{k: "SchemaTestStruct", wantKeys: []string{"A", "B", "C", "D", "D1"}},
+		//{k: "SchemaTestStructNested", wantKeys: []string{"A", "B", "C", "D", "D1", "E"}},
+		{k: "PageTree", wantKeys: []string{"Id"}},
 	}
 
-	s, err := openAPi.anyToSchema(&GoExprWithPath{
-		goparse: openAPi.goparse,
-		expr:    def.Type,
-		doc:     def.Doc,
-		file:    def.File,
-		name:    def.Name,
-		key:     def.Key,
-		noRef:   false,
-	})
-	if err != nil {
-		t.Fatal(err)
-		return
+	for _, c := range cases {
+		t.Run(c.k, func(t *testing.T) {
+			def, exist, err := openAPi.goparse.GetDef("./internal/pkg/openapi", c.k)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			if !exist {
+				t.Fatal("not exist")
+				return
+			}
+
+			s, err := openAPi.anyToSchema(&GoExprWithPath{
+				goparse: openAPi.goparse,
+				expr:    def.Type,
+				doc:     def.Doc,
+				file:    def.File,
+				name:    def.Name,
+				key:     def.Key,
+				noRef:   false,
+			})
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+
+			if objs, ok := s.(*ObjectSchema); ok {
+				key := getJsonItemKey(objs.Properties)
+				if strings.Join(c.wantKeys, ",") != strings.Join(key, ",") {
+					t.Errorf("unexpect result: result: %v, expected: %v ", key, c.wantKeys)
+					bs, _ := json.MarshalIndent(s, " ", " ")
+					t.Errorf("please check it: %s", bs)
+				}
+			}
+		})
+
 	}
-	bs, _ := json.MarshalIndent(s, " ", " ")
-	t.Logf("%s", bs)
+
+	t.Logf("%s", "ok")
+}
+
+func getJsonItemKey(o jsonordered.MapSlice) []string {
+	var a []string
+	for _, item := range o {
+		a = append(a, item.Key)
+		switch t := item.Val.(type) {
+		case ObjectProp:
+			if objs, ok := t.Schema.(*ObjectSchema); ok {
+				a = append(a, getJsonItemKey(objs.Properties)...)
+			}
+		}
+	}
+	return a
 }
 
 func TestFullCommentMeta(t *testing.T) {
@@ -153,68 +237,6 @@ $path:
 	}
 	t.Logf("%s", bs)
 	//t.Logf("%+v", x)
-}
-
-func TestConfig(t *testing.T) {
-	config := `
-var config = {
-	filter: function(key, value){
-		if (key==='$path'){
-			var responses = {}
-		 	Object.keys(value.$path.resp).forEach(function (k){
-				var v = value.$path.resp[k]
-				responses[k] = {
-				  description: v.desc,
-				  content: {
-				    'application/json':{
-				      schema: v.content,
-				    }
-				  }
-				}
-			})
-			return {
-				parameters: value.$path.params.map(function (i){
-					var x = i
-					delete(x['_from'])
-					if (x.tag) {
-						if (x.tag.form){
-							x.name = x.tag.form
-						}
-						delete(x['tag'])
-					}
-					if (x.doc){
-						x.description = x.doc
-						delete(x['doc'])
-					}
-					
-
-					return x
-				}),
-				responses: responses
-			}
-		}
-	}
-}
-`
-
-	val := "var c = " + `{"$path":{"params":[{"_from":"go","name":"Status","tag":{"form":"status"},"doc":"Status values that need to be considered for filter\n$required: true\n","schema":{"type":"array","items":{"type":"PetStatus"}}},{"name":"status","required":true}],"resp":{"200":{"content":{"type":"array","items":{"type":"object","properties":{"Id":{"type":"int64","format":"int64","description":"Id is Pet ID\n","tag":{"json":"id"}},"Category":{"type":"Category","format":"Category","description":"Category Is pet category\n","tag":{"json":"category"}},"PkgName":{"type":"string","format":"string","description":"Id is Pet name\n","tag":{"json":"name"}},"Tags":{"type":"array","format":"","description":"Tag is Pet Tag\n","tag":{"json":"tags"}},"Status":{"type":"PetStatus","format":"PetStatus","description":"","tag":{"json":"status"}}}}},"desc":"成功"},"401":{"content":{"type":"object","properties":{"msg":{"type":"string","format":"string","description":"","example":"没权限"}}},"desc":"没权限"}}}}`
-	jsCode := val + ";" + config + ";config.filter('$path', c)"
-
-	gj := goja.New()
-	v, err := gj.RunScript("js", jsCode)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	bs, err := yaml.Marshal(v.Export())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ioutil.WriteFile("TestConfig.yaml", bs, os.ModePerm)
-
-	t.Logf("%s", bs)
-
 }
 
 func TestGetGoDocForFun(t *testing.T) {
@@ -255,39 +277,6 @@ func TestGetGoDocForStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("%s", bs)
-}
-
-func TestJsonObjectProp(t *testing.T) {
-	x := ObjectProp{
-		Meta:        nil,
-		Description: "1111",
-		Tag:         nil,
-		Example:     nil,
-		Schema: &ObjectSchema{
-			Ref:        "x",
-			Type:       "obj",
-			Properties: nil,
-		},
-	}
-
-	t.Logf("%#v", x)
-
-	bs, err := json.MarshalIndent(&x, " ", " ")
-	t.Logf("%s %v", bs, err)
-}
-
-func TestYaml(t *testing.T) {
-	i := []yaml.MapItem{}
-
-	// 不支持根不是对象的yaml
-	err := yaml.Unmarshal([]byte(`
-- 1
-`), &i)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("%+v", i)
 }
 
 func TestWorkSchemas(t *testing.T) {

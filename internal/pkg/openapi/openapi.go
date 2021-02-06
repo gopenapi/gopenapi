@@ -140,9 +140,9 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	}
 
 	return &OpenApi{
-		goparse:  p,
-		jsConfig: newCode,
-		schemas:  map[string]string{},
+		goparse:      p,
+		jsConfig:     newCode,
+		schemas:      map[string]string{},
 	}, nil
 }
 
@@ -260,13 +260,12 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 
 		for _, f := range s.Fields.List {
 			// 获取子字段 key
-			name := f.Names[0].Name
 			schema, err := o.goAstToSchema(&GoExprWithPath{
 				goparse: o.goparse,
 				expr:    f.Type,
 				doc:     f.Doc,
 				file:    ep.file,
-				name:    name,
+				//name:    name,
 				key:     "",
 				noRef:   false,
 			})
@@ -281,6 +280,7 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 				continue
 			}
 
+			name := f.Names[0].Name
 			l = append(l, ParamsItem{
 				From:        "go",
 				Name:        name,
@@ -482,7 +482,7 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 			expr:    def.Type,
 			doc:     def.Doc,
 			file:    def.File,
-			name:    def.Name,
+			//name:    def.Name,
 			key:     def.Key,
 			noRef:   false,
 		}
@@ -706,6 +706,7 @@ func walkYamlItem(kv []yaml.MapItem, wantKeys []string, walkedKeys []string, cb 
 	}
 }
 
+// walkSchemas 会找到所有schema定义, 从而在其他地方使用时使用ref替换.
 func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
 	walkYamlItem(kv, []string{"components", "schemas", "*", "x-$schema"}, nil, func(key []string, i yaml.MapItem) {
 		schemaKey := strings.Join(key, "/")

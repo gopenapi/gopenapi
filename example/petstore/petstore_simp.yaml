@@ -68,6 +68,9 @@ components:
         - name
         - photoUrls
 
+    TestRecursion:
+      x-$schema: github.com/zbysir/gopenapi/internal/model.TestRecursion
+
   responses:
     200:
       description: Success

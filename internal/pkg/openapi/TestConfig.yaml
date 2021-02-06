@@ -33,8 +33,13 @@ tags:
 paths:
   /pet/findByStatus:
     get:
+      summary: |-
+        FindPetByStatus Is Api that do Finds Pets by status
+        .abc
+      description: Multiple status values can be provided with comma separated strings
       parameters:
       - name: status
+        description: Status values that need to be considered for filter
         schema:
           type: array
           items:
@@ -44,23 +49,11 @@ paths:
             - available
             - pending
             - sold
-            _schema: true
-          _schema: true
         in: query
         required: true
       responses:
         "200":
-          description: 成功
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pet'
-                  _schema: true
-                _schema: false
-        "401":
-          $ref: '#/components/responses/401'
+          $ref: '#/components/responses/200'
       tags:
       - pet
       security:
@@ -69,6 +62,8 @@ paths:
         - read:pets
   /pet/{petId}:
     get:
+      summary: GetPet Find pet by ID
+      description: Returns a single pet
       parameters:
       - in: path
         name: petId
@@ -77,27 +72,31 @@ paths:
           type: string
       responses:
         "200":
-          description: success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pet'
-                _schema: true
-        "404":
-          description: Not Found Pet
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  msg:
-                    type: string
-                    example: Not Found Pet
+          $ref: '#/components/responses/200'
       tags:
       - pet
       operationId: getPetById
       security:
       - api_key: []
+  /pet:
+    post:
+      summary: PutPet Update pet by ID
+      description: ""
+      responses:
+        "200":
+          description: 返回新的Pet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+      requestBody:
+        description: body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+      tags:
+      - pet
 components:
   schemas:
     Category:
@@ -105,41 +104,30 @@ components:
       properties:
         id:
           type: integer
-          _schema: true
         name:
           type: string
-          _schema: true
-      _schema: true
     Tag:
       type: object
       properties:
         id:
           type: integer
-          _schema: true
         name:
           type: string
-          _schema: true
-      _schema: true
     Pet:
       type: object
       properties:
         id:
           type: integer
-          _schema: true
           description: Id is Pet ID
-        Category:
-          _schema: true
+        category:
           $ref: '#/components/schemas/Category'
         name:
           type: string
-          _schema: true
           description: Name is Pet name
         tags:
           type: array
           items:
             $ref: '#/components/schemas/Tag'
-            _schema: true
-          _schema: true
           description: Tag is Pet Tag
         status:
           type: string
@@ -148,13 +136,37 @@ components:
           - available
           - pending
           - sold
-          _schema: true
           description: PetStatus
-      _schema: true
+        x:
+          x-any: true
+          oneOf:
+          - type: array
+          - type: boolean
+          - type: integer
+          - type: number
+          - type: object
+          - type: string
+          description: test interface
       required:
       - name
       - photoUrls
+    TestRecursion:
+      type: object
+      properties:
+        id:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TestRecursion'
   responses:
+    200:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: string
+            example: ok
     400:
       description: Invalid Params
       content:
