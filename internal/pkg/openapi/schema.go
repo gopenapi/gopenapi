@@ -32,7 +32,7 @@ type ObjectProp struct {
 	Example     interface{}          `json:"example,omitempty"`
 }
 
-// 对于嵌套了Interface的结构体, json不支持嵌入式序列化, 故出此下策.
+// 对于嵌套了Interface的结构体, json不支持这样的嵌入语法, 故出此下策：嵌套struct而不是interface。
 type ObjectPropForJson struct {
 	*ObjectSchema
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
@@ -67,9 +67,9 @@ type RefPropForJson struct {
 	Tag map[string]string `json:"tag,omitempty"`
 }
 
+// 将会使用openapi的oneof语法指定 any type
 type AnyPropForJson struct {
 	*AnySchema
-	// 将会使用openapi的oneof语法指定 any type
 	// ref:
 	//  https://swagger.io/docs/specification/data-models/data-types/
 	//  https://swagger.io/docs/specification/data-models/oneof-anyof-allof-not/
@@ -171,10 +171,6 @@ type IdentSchema struct {
 	IsSchema bool          `json:"x-schema,omitempty"`
 }
 
-func (a *IdentSchema) GetType() string {
-	return a.Type
-}
-
 func (s *IdentSchema) _schema() {}
 
 type ErrSchema struct {
@@ -191,6 +187,14 @@ type AnySchema struct {
 }
 
 func (n AnySchema) _schema() {
+}
+
+type AllOfSchema struct {
+	AllOf []Schema `json:"allOf"`
+	IsSchema bool `json:"x-schema"`
+}
+
+func (n AllOfSchema) _schema() {
 }
 
 //type Expr struct {
@@ -213,6 +217,8 @@ func (expr *GoExprWithPath) Key() (string, error) {
 	if expr.key != "" {
 		return expr.key, nil
 	}
+
+	return expr.key, nil
 	switch s := expr.expr.(type) {
 	case *ast.ArrayType:
 		// 不处理
@@ -264,7 +270,6 @@ func (expr *GoExprWithPath) Key() (string, error) {
 	default:
 		panic(fmt.Sprintf("uncase Type of GetExprKey: %T", expr.expr))
 	}
-
 }
 
 // goAstToSchema 将goAst转为Schema
@@ -284,6 +289,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	if !expr.noRef {
+		// 判断此表达式是否是在schemas中定义过了，如果定义过了则使用ref语法。
 		exprKey, err := expr.Key()
 		if err != nil {
 			err = fmt.Errorf("call Expr.Key err: %w", err)
@@ -303,12 +309,8 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	}
 
 	if k != "" {
-		log.Infof("%s %T", k, expr.expr)
-		// 重复引用 (递归), 则返回空
-		// TODO 弄清楚这里计数问题
-		if count, ok := o.parsedSchema[k]; ok && count > 2 {
-			// 注意: 是否应该返回 ErrSchema
-			log.Warningf("Recursion: %s", k)
+		// 可以递归两次，超出则报错
+		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
 			return &ErrSchema{IsSchema: true, Error: "recursion"}, nil
 		}
 
@@ -327,7 +329,6 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("schema %+v", schema)
 
 		schema = &ArraySchema{
 			Type:     "array",
@@ -423,8 +424,6 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			if err != nil {
 				return nil, err
 			}
-
-			//schema, err := o.goAstToSchema(str.Type, str.File)
 			return schema, err
 		}
 
@@ -432,6 +431,10 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	case *ast.StructType:
 		var props jsonordered.MapSlice
 
+		allOf :=AllOfSchema{
+			AllOf: nil,
+			IsSchema:true,
+		}
 		for _, f := range s.Fields.List {
 			fieldSchema, err := o.goAstToSchema(&GoExprWithPath{
 				goparse: o.goparse,
@@ -446,16 +449,24 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 			var name string
 			// nested
+			// 组合（嵌套）格式处理
 			if len(f.Names) != 0 {
 				name = f.Names[0].Name
 			} else if f.Tag != nil {
 				name = getExprName(f.Type)
 			} else {
 				// 当是嵌套, 并且没有任何tag时, 才展开子级
-				if strSchema, ok := fieldSchema.(*ObjectSchema); ok {
-					props = append(props, strSchema.Properties...)
+				// 如果字段schema是refSchema，则使用allOf语法
+				// 如果字段是ObjectSchema，则展开
+				// 如果不是上面则情况，则当成普通字段处理
+				switch t := fieldSchema.(type) {
+				case *ObjectSchema:
+					props = append(props, t.Properties...)
 					continue
-				} else {
+				case *RefSchema:
+					allOf.AllOf = append(allOf.AllOf, t)
+					continue
+				default:
 					name = getExprName(f.Type)
 				}
 			}
@@ -476,10 +487,16 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			})
 		}
 
-		schema := &ObjectSchema{
+		var schema Schema = &ObjectSchema{
 			Type:       "object",
 			Properties: props,
 			IsSchema:   true,
+		}
+
+		if len(allOf.AllOf) != 0 {
+			allOf.AllOf = append(allOf.AllOf, schema)
+			//log.Infof("all %#v", schema)
+			return allOf, nil
 		}
 
 		return schema, nil

@@ -43,3 +43,10 @@ type GetPetById struct {
 	//   in: path
 	Id int64 `uri:"id"`
 }
+
+// DelPetParams test for allOf syntax
+// 对于组合的结构，gopenapi会尝试使用allOf + ref语法。
+type DelPetParams struct{
+	*Pet
+	ManagePwd string `json:"manage_pwd"`
+}

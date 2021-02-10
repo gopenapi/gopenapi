@@ -152,6 +152,7 @@ type PkgGetter struct {
 	pkg     *goast.Pkg
 }
 
+// GetMember 返回某个包中的定义
 func (p PkgGetter) GetMember(k string) interface{} {
 	def, exist, err := p.goparse.GetDef(p.pkg.Dir, k)
 	if err != nil {
@@ -170,7 +171,7 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		doc:     def.Doc,
 		file:    def.File,
 		name:    def.Name,
-		//key:     def.Key,
+		key:     def.Key,
 		noRef:   false,
 	}
 }
@@ -721,6 +722,8 @@ func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
 		}
 		o.schemas[pat] = schemaKey
 	})
+
+	//log.Infof("%+v", o.schemas)
 	return
 }
 

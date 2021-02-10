@@ -16,6 +16,18 @@ export default {
                 }
               }
             }
+          } else if (value.meta.response.schema) {
+            // for `{desc: "xxx", schema: schema(xxx)}` syntax
+            responses = {
+              "200": {
+                description: value.meta.response.desc || 'success',
+                content: {
+                  'application/json': {
+                    schema: processSchema(value.meta.response.schema),
+                  }
+                }
+              }
+            }
           } else {
             // for {200: xxx} syntax
             Object.keys(value.meta.response).forEach(function (k) {
@@ -61,11 +73,20 @@ export default {
         let params
         // console.log('params', JSON.stringify(value.meta.params))
         if (value.meta.params) {
-          params = value.meta.params.map(function (i) {
+          params = []
+
+          value.meta.params.forEach(function (i) {
             let x = i
             if (x.tag) {
               if (x.tag.form) {
                 x.name = x.tag.form
+              } else if (x.tag.json) {
+                x.name = x.tag.json
+              }
+
+              if (x.name === '-') {
+                // omit this property
+                return
               }
               delete (x['tag'])
             }
@@ -74,19 +95,17 @@ export default {
               x.required = x['meta'].required
             }
             if (!x.in) {
-              // default `in` for params
+              // default `in` in openapi-parameters
               x.in = 'query'
             }
             if (x.schema) {
-              // default `in` for params
               x.schema = processSchema(x.schema)
             }
 
             delete (x['_from'])
-            delete (x['doc'])
             delete (x['meta'])
 
-            return x
+            params.push(x)
           })
         }
 
@@ -105,11 +124,8 @@ export default {
           } else {
             let v = value.meta.body
             let schema
-            if (v['x-schema']) {
-              schema = v
-            } else {
-              schema = v.schema
-            }
+            schema = v.schema
+
             body = {
               description: v.desc || 'body',
               content: {
@@ -125,8 +141,8 @@ export default {
           summary: value.summary,
           description: value.description,
           parameters: params,
-          responses: responses,
           requestBody: body,
+          responses: responses,
         }
       }
       case 'x-$schema': {
@@ -143,6 +159,12 @@ function processSchema(s) {
     return null
   }
 
+  if (s.allOf) {
+    s.allOf = s.allOf.map((item) => {
+      return processSchema(item)
+    })
+  }
+
   if (s.properties) {
     var p = {}
     Object.keys(s.properties).forEach(function (key) {
@@ -152,8 +174,20 @@ function processSchema(s) {
       if (v.tag) {
         if (v.tag.json) {
           name = v.tag.json
+          if (name === '-') {
+            // omit this property
+            return
+          }
         }
         delete (v['tag'])
+      }
+
+      if (v['x-any']){
+        delete v['x-any']
+        // add 'example' property to fix bug of editor.swagger.io
+        if (!v.example){
+          v.example = null
+        }
       }
 
       p[name] = processSchema(v)
@@ -166,7 +200,9 @@ function processSchema(s) {
     s.items = processSchema(s.items)
   }
 
-  delete s['x-schema']
+  if (s['x-schema']) {
+    delete s['x-schema']
+  }
 
   return s
 }

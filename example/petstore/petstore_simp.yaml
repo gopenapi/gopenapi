@@ -56,6 +56,11 @@ paths:
       tags:
         - pet
 
+    delete:
+      x-$path: ./internal/delivery/http/handler.PetHandler.DelPet
+      tags:
+        - pet
+
 components:
   schemas:
     Category:
