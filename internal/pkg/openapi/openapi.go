@@ -211,6 +211,23 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 						x[i] = v
 					}
 					return x, nil
+				case *NotFoundGoExpr:
+					// TODO print error
+					return []interface{}{ParamsItem{
+						From:        "",
+						Name:        "error params",
+						Tag:         nil,
+						Description: "",
+						Meta:        nil,
+						Error: fmt.Sprintf("can't found definition '%s' in pkg '%s'", s.key, s.pkg),
+						Schema:      &IdentSchema{
+							Ref:      "",
+							Type:     "string",
+							Default:  nil,
+							Enum:     nil,
+							IsSchema: false,
+						},
+					}},nil
 				}
 				// case for non-go syntax. e.g.:
 				//   params([{name: 'status', schema: 'string'}])
@@ -534,6 +551,8 @@ type ParamsItem struct {
 	Description string               `json:"description"`
 	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
 	Schema      Schema               `json:"schema"`
+	// Error 存储错误，用于友好提示
+	Error string `json:"error,omitempty"`
 }
 
 func (t *ParamsItem) ToYaml(useTag string) []yaml.MapItem {

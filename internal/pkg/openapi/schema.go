@@ -175,7 +175,10 @@ func (s *IdentSchema) _schema() {}
 
 type ErrSchema struct {
 	IsSchema bool   `json:"x-schema,omitempty"`
-	Error    string `json:"x-error,omitempty"`
+	// 用于强提示，此字段在editor中会报错。
+	Error    string `json:"error,omitempty"`
+	// 用于弱提示，此字段在editor中不会报错。
+	XError string `json:"x-error,omitempty"`
 }
 
 func (n ErrSchema) _schema() {
@@ -311,7 +314,8 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	if k != "" {
 		// 可以递归两次，超出则报错
 		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
-			return &ErrSchema{IsSchema: true, Error: "recursion"}, nil
+			// TODO print error
+			return &ErrSchema{IsSchema: true, XError: fmt.Sprintf("recursive references on '%s'", k)}, nil
 		}
 
 		o.parsedSchema[k] ++
@@ -363,6 +367,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		}
 		if !exist {
 			msg := fmt.Sprintf("can't found Type: %s", s.Name)
+			// TODO print error
 			log.Warning(msg)
 			return &ErrSchema{
 				Error: msg,
@@ -495,7 +500,6 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 		if len(allOf.AllOf) != 0 {
 			allOf.AllOf = append(allOf.AllOf, schema)
-			//log.Infof("all %#v", schema)
 			return allOf, nil
 		}
 

@@ -88,7 +88,6 @@ export default {
                 // omit this property
                 return
               }
-              delete (x['tag'])
             }
             if (x['meta']) {
               x.in = x['meta'].in;
@@ -102,6 +101,7 @@ export default {
               x.schema = processSchema(x.schema)
             }
 
+            delete (x['tag'])
             delete (x['_from'])
             delete (x['meta'])
 
