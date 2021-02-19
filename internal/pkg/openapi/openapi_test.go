@@ -85,7 +85,7 @@ func TestToSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := openAPi.runJsExpress("schema(model.Pet)",
+	v, err := openAPi.runJsExpress("model.Pet",
 		"github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)

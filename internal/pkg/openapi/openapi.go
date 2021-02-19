@@ -202,6 +202,10 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 					return nil, nil
 				case *GoExprWithPath:
 					// case for params(model.FindPetByStatusParams) syntax:
+					sch,err:=o.anyToSchema(stru)
+					if err != nil {
+						return nil, err
+					}
 
 					// 由于 运行js 表达式只支持基础类型, 所以需要转为[]interface{}
 					// 又由于 go 的map[string]interface{} 是无序的, 所以不能使用copyToBaseType函数递归将所有字段都转为baseType.
@@ -299,6 +303,57 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 			}
 
 			name := f.Names[0].Name
+			l = append(l, ParamsItem{
+				From:        "go",
+				Name:        name,
+				Tag:         encodeTag(f.Tag),
+				Description: gd.FullDoc,
+				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
+				Schema:      schema,
+			})
+		}
+	default:
+		panic(fmt.Sprintf("uncased struct2ParamsList type: %T, %+v", s, s))
+	}
+
+	return l
+}
+// 将struct解析成 openapi.parameters
+// 返回的是[]ParamsItem.
+func (o *OpenApi) schema2ParamsList(sc Schema) []ParamsItem {
+	var l []ParamsItem
+	switch s := sc.(type) {
+	case *ObjectSchema:
+		// 父级的 meta会传递到所有子字段
+		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
+		if err != nil {
+			fmt.Printf("[err] %v", err)
+			return nil
+		}
+
+		for _, f := range s.Properties {
+			// 获取子字段 key
+			schema, err := o.goAstToSchema(&GoExprWithPath{
+				goparse: o.goparse,
+				expr:    f.Type,
+				doc:     f.Doc,
+				file:    ep.file,
+				//name:    name,
+				key:     "",
+				noRef:   false,
+			})
+			if err != nil {
+				fmt.Printf("[err] %v\n", err)
+				continue
+			}
+
+			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
+			if err != nil {
+				fmt.Printf("[err] %v", err)
+				continue
+			}
+
+			name := f.Key
 			l = append(l, ParamsItem{
 				From:        "go",
 				Name:        name,
