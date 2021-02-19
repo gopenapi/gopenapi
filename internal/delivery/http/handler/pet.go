@@ -28,9 +28,9 @@ type PetHandler struct {
 // Multiple status values can be provided with comma separated strings
 //
 // $:
-//   js-params: "[...params(model.FindPetByStatusParams)]"
+//   js-params: "model.FindPetByStatusParams"
 //   js-resp: |
-//     {200: {desc: "成功", schema: schema([model.Pet])},
+//     {200: {desc: "成功", schema: [model.Pet]},
 //       401: "#/components/responses/401" }
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
@@ -56,7 +56,7 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 // $:
 //    js-params: "[{name: 'petId', required: true, in: 'path', schema: {type: 'string'}}]"
 //    js-resp: |
-//     {200: {schema: schema(model.Pet)}, 404: {desc: "Not Found Pet", schema: schema({msg: "Not Found Pet"})}, }
+//     {200: {schema: model.Pet}, 404: {desc: "Not Found Pet", schema: schema({msg: "Not Found Pet"})}, }
 //
 func (h *PetHandler) GetPet(ctx *gin.Context) {
 	var p model.GetPetById
@@ -82,9 +82,9 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 // PutPet Update pet by ID
 //
 // $:
-//    js-body: "schema(model.Pet).require('id')"
+//    js-body: "{schema: model.Pet, required: 'id'}"
 //    js-response: |
-//     {200: {schema: schema(model.Pet), desc:"返回新的Pet"}}
+//     {200: {schema: model.Pet, desc:"返回新的Pet"}}
 //
 func (h *PetHandler) PutPet(ctx *gin.Context) {
 	var p model.Pet
@@ -105,9 +105,7 @@ func (h *PetHandler) PutPet(ctx *gin.Context) {
 // DelPet Delete pet that need managePwd
 //
 // $:
-//    js-body: "schema(model.DelPetParams)"
-//    js-response: |
-//     {200: "ok"}
+//    js-params: "model.DelPetParams"
 //
 func (h *PetHandler) DelPet(ctx *gin.Context) {
 	var p model.DelPetParams

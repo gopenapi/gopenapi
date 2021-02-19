@@ -21,7 +21,8 @@ type GoStruct struct {
 	// Meta 是变量部分, 应该使用json序列化后(给js脚本)使用
 	Meta jsonordered.MapSlice `json:"meta"`
 
-	Schema Schema `json:"schema,omitempty"`
+	Schema    Schema `json:"schema,omitempty"`
+	XGoStruct bool   `json:"x-gostruct"`
 }
 
 // parseGoDoc 将注释转为 纯注释文本 和 支持json序列化的Meta.
@@ -95,6 +96,8 @@ func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoStruct, error) {
 		Summary:     summary,
 		Description: description,
 		Meta:        yamlItemToJsonItem(combinObj(yamlObj...)),
+		Schema:      nil,
+		XGoStruct:   true,
 	}, nil
 }
 

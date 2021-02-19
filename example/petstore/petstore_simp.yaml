@@ -69,10 +69,6 @@ components:
       x-$schema: ./internal/model.Tag
     Pet:
       x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
-      required:
-        - name
-        - photoUrls
-
     TestRecursion:
       x-$schema: github.com/zbysir/gopenapi/internal/model.TestRecursion
 

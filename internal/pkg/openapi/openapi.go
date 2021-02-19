@@ -140,33 +140,39 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	}
 
 	return &OpenApi{
-		goparse:      p,
-		jsConfig:     newCode,
-		schemas:      map[string]string{},
+		goparse:  p,
+		jsConfig: newCode,
+		schemas:  map[string]string{},
 	}, nil
 }
 
 // PkgGetter 实现了 GetMember 接口, 用来给js解析器执行 member 语法.
+// 对应的语法如下 model.X
 type PkgGetter struct {
 	goparse *goast.GoParse
 	pkg     *goast.Pkg
+	openApi *OpenApi
 }
 
-// GetMember 返回某个包中的定义
-func (p PkgGetter) GetMember(k string) interface{} {
+// GetMember 返回某个包中的定义, 返回 NotFoundGoExpr or GoExprWithPath
+func (p PkgGetter) GetMember(k string) (interface{}, error) {
 	def, exist, err := p.goparse.GetDef(p.pkg.Dir, k)
 	if err != nil {
 		fmt.Printf("[err] %v", err)
-		return nil
+		return nil, err
 	}
+
+	var expr interface{}
 	if !exist {
-		return &NotFoundGoExpr{
+		expr = &NotFoundGoExpr{
 			key: k,
 			pkg: p.pkg.Dir,
 		}
 	}
-	return &GoExprWithPath{
+
+	expr = &GoExprWithPath{
 		goparse: p.goparse,
+		openapi: p.openApi,
 		expr:    def.Type,
 		doc:     def.Doc,
 		file:    def.File,
@@ -174,6 +180,8 @@ func (p PkgGetter) GetMember(k string) interface{} {
 		key:     def.Key,
 		noRef:   false,
 	}
+
+	return expr, nil
 }
 
 func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
@@ -182,7 +190,7 @@ func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
 
 // 扩展openapi语法, 让其支持从go文件中读取注释信息
 // params:
-//  code: js表达式
+//  code: js表达式, 支持go模型选择, 语法如下 model.X, go模型会被解析成 GoStruct 结构体.
 //  goFilePath: 当前go文件的路径, 会根据当前文件引入的包识别js表达式使用的是哪个包.
 // return:
 //  可能是任何东西
@@ -194,49 +202,6 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 		// - schema: for schemas of openapi
 		// - body: for requestBody of openapi
 		switch name {
-		case "params":
-			return func(args ...interface{}) (interface{}, error) {
-				stru := args[0]
-				switch s := stru.(type) {
-				case nil:
-					return nil, nil
-				case *GoExprWithPath:
-					// case for params(model.FindPetByStatusParams) syntax:
-					sch,err:=o.anyToSchema(stru)
-					if err != nil {
-						return nil, err
-					}
-
-					// 由于 运行js 表达式只支持基础类型, 所以需要转为[]interface{}
-					// 又由于 go 的map[string]interface{} 是无序的, 所以不能使用copyToBaseType函数递归将所有字段都转为baseType.
-					list := o.struct2ParamsList(s)
-					x := make([]interface{}, len(list))
-					for i, v := range list {
-						x[i] = v
-					}
-					return x, nil
-				case *NotFoundGoExpr:
-					// TODO print error
-					return []interface{}{ParamsItem{
-						From:        "",
-						Name:        "error params",
-						Tag:         nil,
-						Description: "",
-						Meta:        nil,
-						Error: fmt.Sprintf("can't found definition '%s' in pkg '%s'", s.key, s.pkg),
-						Schema:      &IdentSchema{
-							Ref:      "",
-							Type:     "string",
-							Default:  nil,
-							Enum:     nil,
-							IsSchema: false,
-						},
-					}},nil
-				}
-				// case for non-go syntax. e.g.:
-				//   params([{name: 'status', schema: 'string'}])
-				return stru, nil
-			}, nil
 		case "schema":
 			return func(args ...interface{}) (interface{}, error) {
 				stru := args[0]
@@ -255,6 +220,7 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 				return &PkgGetter{
 					goparse: o.goparse,
 					pkg:     pkg,
+					openApi: o,
 				}, nil
 			}
 		}
@@ -320,55 +286,55 @@ func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
 }
 // 将struct解析成 openapi.parameters
 // 返回的是[]ParamsItem.
-func (o *OpenApi) schema2ParamsList(sc Schema) []ParamsItem {
-	var l []ParamsItem
-	switch s := sc.(type) {
-	case *ObjectSchema:
-		// 父级的 meta会传递到所有子字段
-		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
-		if err != nil {
-			fmt.Printf("[err] %v", err)
-			return nil
-		}
-
-		for _, f := range s.Properties {
-			// 获取子字段 key
-			schema, err := o.goAstToSchema(&GoExprWithPath{
-				goparse: o.goparse,
-				expr:    f.Type,
-				doc:     f.Doc,
-				file:    ep.file,
-				//name:    name,
-				key:     "",
-				noRef:   false,
-			})
-			if err != nil {
-				fmt.Printf("[err] %v\n", err)
-				continue
-			}
-
-			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
-			if err != nil {
-				fmt.Printf("[err] %v", err)
-				continue
-			}
-
-			name := f.Key
-			l = append(l, ParamsItem{
-				From:        "go",
-				Name:        name,
-				Tag:         encodeTag(f.Tag),
-				Description: gd.FullDoc,
-				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
-				Schema:      schema,
-			})
-		}
-	default:
-		panic(fmt.Sprintf("uncased struct2ParamsList type: %T, %+v", s, s))
-	}
-
-	return l
-}
+//func (o *OpenApi) schema2ParamsList(sc Schema) []ParamsItem {
+//	var l []ParamsItem
+//	switch s := sc.(type) {
+//	case *ObjectSchema:
+//		// 父级的 meta会传递到所有子字段
+//		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
+//		if err != nil {
+//			fmt.Printf("[err] %v", err)
+//			return nil
+//		}
+//
+//		for _, f := range s.Properties {
+//			// 获取子字段 key
+//			schema, err := o.goAstToSchema(&GoExprWithPath{
+//				goparse: o.goparse,
+//				expr:    f.Type,
+//				doc:     f.Doc,
+//				file:    ep.file,
+//				//name:    name,
+//				key:     "",
+//				noRef:   false,
+//			})
+//			if err != nil {
+//				fmt.Printf("[err] %v\n", err)
+//				continue
+//			}
+//
+//			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
+//			if err != nil {
+//				fmt.Printf("[err] %v", err)
+//				continue
+//			}
+//
+//			name := f.Key
+//			l = append(l, ParamsItem{
+//				From:        "go",
+//				Name:        name,
+//				Tag:         encodeTag(f.Tag),
+//				Description: gd.FullDoc,
+//				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
+//				Schema:      schema,
+//			})
+//		}
+//	default:
+//		panic(fmt.Sprintf("uncased struct2ParamsList type: %T, %+v", s, s))
+//	}
+//
+//	return l
+//}
 
 // all type of openapi: array, boolean, integer, number , object, string
 func IsBaseType(t string) (is bool, openApiType string) {
@@ -492,6 +458,12 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 					return nil, fmt.Errorf("run js express fail: %w", err)
 				}
 
+				//sch, err := o.anyToSchema(v)
+				//if err != nil {
+				//	return nil, fmt.Errorf("to schema error: %w", err)
+				//}
+
+				//log.Infof("xxxxxxxx %v", sch)
 				r = append(r, yaml.MapItem{
 					Key:   item.Key,
 					Value: v,
@@ -549,15 +521,17 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 	}
 
 	// 如果是一个结构体, 则自动转为schema
+	// 用于在 x-$schema 语法中使用
 	if _, ok := def.Type.(*ast.StructType); ok {
 		expr := &GoExprWithPath{
 			goparse: o.goparse,
+			openapi: o,
 			expr:    def.Type,
 			doc:     def.Doc,
-			file:    def.File,
+			file: def.File,
 			//name:    def.Name,
-			key:     def.Key,
-			noRef:   false,
+			key:   def.Key,
+			noRef: false,
 		}
 
 		if isSchemasComponentsKey(yamlKeyRouter) {
@@ -896,7 +870,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 
 				bsxxx, _ := json.Marshal(outI)
 				if !bytes.Equal(bsxxx, outBs) {
-					log.Errorf("Unexpected result on Marshal, want: %s, got: %s", outBs, bsxxx)
+					log.Errorf("Unexpected result on Marshal,\n  want: %s\n  got:  %s", outBs, bsxxx)
 				}
 				x := jsonItemToYamlItem(outI)
 				out = append(out, x...)

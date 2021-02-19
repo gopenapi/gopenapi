@@ -78,6 +78,7 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 		return nil, false, err
 	}
 
+	// 如果是 model.X.Func 的语法, 则获取Function定义
 	if len(kk) > 1 {
 		funcs, err := g.GetFuncOfStruct(pkgDir, kk[0])
 		if err != nil {

@@ -48,7 +48,7 @@ func unmarshal(bs []byte, dataType jsonparser.ValueType) (interface{}, error) {
 		return i, nil
 
 	case jsonparser.Array:
-		var kvs []interface{}
+		kvs := make([]interface{}, 0)
 		_, err := jsonparser.ArrayEach(bs, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 			item, err := unmarshal(value, dataType)
 			if err != nil {

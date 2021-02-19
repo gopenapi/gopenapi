@@ -15,149 +15,41 @@ type Schema interface {
 }
 
 type ObjectSchema struct {
-	Ref        string               `json:"$ref,omitempty"`
-	Type       string               `json:"type"`
-	Properties jsonordered.MapSlice `json:"properties"`
-	IsSchema   bool                 `json:"x-schema,omitempty"`
+	Type        string               `json:"type"`
+	Description string               `json:"description,omitempty"`
+	Properties  jsonordered.MapSlice `json:"properties"`
+	Example     interface{}          `json:"example,omitempty"`
 
-	Modify []Modify `json:"modify"`
-
+	Modify   []Modify `json:"modify,omitempty"`
+	IsSchema bool     `json:"x-schema,omitempty"`
 }
-
 
 // 实现装饰器语法
 // schema(model.x).require('id','name', any)
-func (o *ObjectSchema) GetMember(k string) interface{} {
+func (o *ObjectSchema) GetMember(k string) (interface{}, error) {
 	return func(args ...interface{}) (interface{}, error) {
 		o.Modify = append(o.Modify, Modify{
 			Key:  k,
 			Args: args,
 		})
 		return o, nil
-	}
+	}, nil
 }
 
 func (o *ObjectSchema) _schema() {}
 
 // ObjectProp 对象的成员
 type ObjectProp struct {
-	Schema
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-	Example     interface{}          `json:"example,omitempty"`
-}
-
-// 对于嵌套了Interface的结构体, json不支持这样的嵌入语法, 故出此下策：嵌套struct而不是interface。
-type ObjectPropForJson struct {
-	*ObjectSchema
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-	Example     interface{}          `json:"example,omitempty"`
-}
-
-type ArrayPropForJson struct {
-	*ArraySchema
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-	Example     interface{}          `json:"example,omitempty"`
-}
-
-type IdentPropForJson struct {
-	*IdentSchema
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-	Example     interface{}          `json:"example,omitempty"`
-}
-
-type ErrPropForJson struct {
-	*ErrSchema
-}
-
-type RefPropForJson struct {
-	*RefSchema
-	Ref string            `json:"$ref"`
-	Tag map[string]string `json:"tag,omitempty"`
-}
-
-// 将会使用openapi的oneof语法指定 any type
-type AnyPropForJson struct {
-	*AnySchema
-	// ref:
-	//  https://swagger.io/docs/specification/data-models/data-types/
-	//  https://swagger.io/docs/specification/data-models/oneof-anyof-allof-not/
-	OneOf       []interface{}        `json:"oneOf"`
-	Meta        jsonordered.MapSlice `json:"meta,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Tag         map[string]string    `json:"tag,omitempty"`
-}
-
-func (o ObjectProp) MarshalJSON() ([]byte, error) {
-	switch s := o.Schema.(type) {
-	case *ObjectSchema:
-		return json.Marshal(ObjectPropForJson{
-			ObjectSchema: s,
-			Meta:         o.Meta,
-			Description:  o.Description,
-			Tag:          o.Tag,
-			Example:      o.Example,
-		})
-	case *ArraySchema:
-		return json.Marshal(ArrayPropForJson{
-			ArraySchema: s,
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
-		})
-	case *IdentSchema:
-		return json.Marshal(IdentPropForJson{
-			IdentSchema: s,
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-			Example:     o.Example,
-		})
-	case *ErrSchema:
-		return json.Marshal(ErrPropForJson{
-			ErrSchema: s,
-		})
-	case *RefSchema:
-		return json.Marshal(RefPropForJson{
-			RefSchema: s,
-			Ref:       s.Ref,
-			Tag:       o.Tag,
-		})
-	case *AnySchema:
-		any := AnyPropForJson{
-			AnySchema: s,
-			OneOf: []interface{}{
-				map[string]interface{}{"type": "array"},
-				map[string]interface{}{"type": "boolean"},
-				map[string]interface{}{"type": "integer"},
-				map[string]interface{}{"type": "number"},
-				map[string]interface{}{"type": "object"},
-				map[string]interface{}{"type": "string"},
-			},
-			Meta:        o.Meta,
-			Description: o.Description,
-			Tag:         o.Tag,
-		}
-		return json.Marshal(any)
-	default:
-		panic(fmt.Sprintf("uncase Schema Type in Marshal %T", o.Schema))
-	}
-
-	return nil, nil
+	Schema Schema               `json:"schema"`
+	Meta   jsonordered.MapSlice `json:"meta,omitempty"`
+	Tag    map[string]string    `json:"tag,omitempty"`
 }
 
 type ArraySchema struct {
-	Type     string `json:"type"`
-	Items    Schema `json:"items"`
-	IsSchema bool   `json:"x-schema"`
+	Type        string `json:"type"`
+	Description string `json:"description,omitempty"`
+	Items       Schema `json:"items"`
+	IsSchema    bool   `json:"x-schema"`
 }
 
 func (a *ArraySchema) GetType() string {
@@ -169,7 +61,6 @@ func (a *ArraySchema) _schema() {}
 type RefSchema struct {
 	Ref      string `json:"$ref"`
 	IsSchema bool   `json:"x-schema"`
-
 }
 
 type Modify struct {
@@ -185,12 +76,13 @@ func (r *RefSchema) GetType() string {
 
 // 基础类型, string / int
 type IdentSchema struct {
-	Ref string `json:"$ref,omitempty"`
+	Type        string        `json:"type"`
+	Description string        `json:"description,omitempty"`
+	Default     interface{}   `json:"default,omitempty"`
+	Enum        []interface{} `json:"enum,omitempty"`
+	IsSchema    bool          `json:"x-schema,omitempty"`
 
-	Type     string        `json:"type"`
-	Default  interface{}   `json:"default,omitempty"`
-	Enum     []interface{} `json:"enum,omitempty"`
-	IsSchema bool          `json:"x-schema,omitempty"`
+	Example interface{} `json:"example,omitempty"`
 }
 
 func (s *IdentSchema) _schema() {}
@@ -207,8 +99,10 @@ func (n ErrSchema) _schema() {
 }
 
 type AnySchema struct {
-	IsSchema bool `json:"x-schema,omitempty"`
-	IsAny    bool `json:"x-any,omitempty"`
+	IsSchema    bool          `json:"x-schema,omitempty"`
+	IsAny       bool          `json:"x-any,omitempty"`
+	Description string        `json:"description,omitempty"`
+	OneOf       []interface{} `json:"oneOf"`
 }
 
 func (n AnySchema) _schema() {
@@ -347,23 +241,31 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	case *ast.ArrayType:
 		schema, err := o.goAstToSchema(&GoExprWithPath{
 			goparse: o.goparse,
+			openapi: o.openapi,
 			expr:    s.Elt,
+			doc:     expr.doc,
 			file:    expr.file,
 			name:    "",
 			key:     "",
+			noRef:   false,
 		})
 		if err != nil {
 			return nil, err
 		}
-
+		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		if err != nil {
+			return nil, err
+		}
 		schema = &ArraySchema{
-			Type:     "array",
-			Items:    schema,
-			IsSchema: true,
+			Type:        "array",
+			Items:       schema,
+			IsSchema:    true,
+			Description: gd.FullDoc,
 		}
 		return schema, nil
 	case *ast.StarExpr:
 		return o.goAstToSchema(&GoExprWithPath{
+			openapi: o.openapi,
 			goparse: expr.goparse,
 			expr:    s.X,
 			doc:     expr.doc,
@@ -376,10 +278,18 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		// 标识
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
 		if is, t := IsBaseType(s.Name); is {
+			gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+			if err != nil {
+				return nil, err
+			}
+
 			return &IdentSchema{
-				Type:     t,
-				Enum:     nil,
-				IsSchema: true,
+				Type:        t,
+				Default:     nil,
+				Enum:        nil,
+				IsSchema:    true,
+				Description: gd.FullDoc,
+				Example:     nil,
 			}, nil
 		}
 		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgOfFile(expr.file), s.Name)
@@ -397,8 +307,10 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		}
 
 		schema, err := o.goAstToSchema(&GoExprWithPath{
+			openapi: o.openapi,
 			goparse: o.goparse,
 			expr:    def.Type,
+			doc:     def.Doc,
 			file:    def.File,
 			name:    "",
 			key:     def.Key,
@@ -409,7 +321,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		}
 
 		// 如果是基础类型, 则需要获取枚举值
-		if id, ok := schema.(*IdentSchema); ok {
+		if idt, ok := schema.(*IdentSchema); ok {
 			// 查找Enum
 			enum, err := o.goparse.GetEnum(o.goparse.GetPkgOfFile(expr.file), s.Name)
 			if err != nil {
@@ -418,8 +330,8 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 			_, defValue := enum.FirstValue()
 
-			id.Enum = enum.Values
-			id.Default = defValue
+			idt.Enum = enum.Values
+			idt.Default = defValue
 		}
 
 		return schema, err
@@ -442,7 +354,9 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			}
 
 			schema, err := o.goAstToSchema(&GoExprWithPath{
+				openapi: o.openapi,
 				goparse: o.goparse,
+				doc:     str.Doc,
 				expr:    str.Type,
 				file:    str.File,
 				name:    str.Name,
@@ -464,11 +378,15 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		}
 		for _, f := range s.Fields.List {
 			fieldSchema, err := o.goAstToSchema(&GoExprWithPath{
+				openapi: o.openapi,
 				goparse: o.goparse,
 				expr:    f.Type,
 				file:    expr.file,
+				name:    "",
 				//name:    name,
-				key: "",
+				key:   "",
+				noRef: false,
+				doc:   f.Doc,
 			})
 			if err != nil {
 				return nil, err
@@ -506,18 +424,23 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			props = append(props, jsonordered.MapItem{
 				Key: name,
 				Val: ObjectProp{
-					Schema:      fieldSchema,
-					Meta:        gd.Meta,
-					Description: gd.FullDoc,
-					Tag:         encodeTag(f.Tag),
+					Schema: fieldSchema,
+					Meta:   gd.Meta,
+					Tag:    encodeTag(f.Tag),
 				},
 			})
 		}
-
+		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		if err != nil {
+			return nil, err
+		}
 		var schema Schema = &ObjectSchema{
-			Type:       "object",
-			Properties: props,
-			IsSchema:   true,
+			Type:        "object",
+			Properties:  props,
+			IsSchema:    true,
+			Description: gd.FullDoc,
+			Example:     nil,
+			Modify:      nil,
 		}
 
 		if len(allOf.AllOf) != 0 {
@@ -527,9 +450,23 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 		return schema, nil
 	case *ast.InterfaceType:
+		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		if err != nil {
+			return nil, err
+		}
+
 		return &AnySchema{
-			IsSchema: true,
-			IsAny:    true,
+			IsSchema:    true,
+			IsAny:       true,
+			Description: gd.FullDoc,
+			OneOf: []interface{}{
+				map[string]interface{}{"type": "array"},
+				map[string]interface{}{"type": "boolean"},
+				map[string]interface{}{"type": "integer"},
+				map[string]interface{}{"type": "number"},
+				map[string]interface{}{"type": "object"},
+				map[string]interface{}{"type": "string"},
+			},
 		}, nil
 	default:
 		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
@@ -566,8 +503,10 @@ type NotFoundGoExpr struct {
 
 type GoExprWithPath struct {
 	goparse *goast.GoParse
+	openapi *OpenApi
 	expr    ast.Expr
-	doc     *ast.CommentGroup
+	// 表达式的文档
+	doc *ast.CommentGroup
 	// 表达式所在的文件地址
 	file string
 
@@ -584,51 +523,78 @@ type GoExprWithPath struct {
 	noRef bool
 }
 
+// 在解析成json时(在js脚本中使用), 需要解析成js脚本能使用的格式, 即 GoStruct
+func (g *GoExprWithPath) MarshalJSON() ([]byte, error) {
+
+	str, err := g.openapi.parseGoDoc(g.doc.Text(), g.file)
+	if err != nil {
+		err = fmt.Errorf("parseGoDoc error: %w", err)
+		return nil, err
+	}
+
+	sch, err := g.openapi.anyToSchema(g)
+	if err != nil {
+		return nil, fmt.Errorf("to schema %w", err)
+	}
+
+	str.Schema = sch
+
+	return json.Marshal(str)
+}
+
 // 如果类型是 结构体, 则还需要查询到子方法或者子成员
-func (g *GoExprWithPath) GetMember(k string) interface{} {
+func (g *GoExprWithPath) GetMember(k string) (interface{}, error) {
 	str, ok := g.expr.(*ast.StructType)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	// 查找结构体中子成员
 	for _, field := range str.Fields.List {
 		if k == field.Names[0].Name {
 			return &GoExprWithPath{
+				openapi: g.openapi,
 				goparse: g.goparse,
 				expr:    field.Type,
+				doc:     field.Doc,
 				file:    g.file,
 				name:    "",
 				key:     "",
-			}
+				noRef:   false,
+			}, nil
 		}
 	}
 
 	// 查找方法
 	funcs, err := g.goparse.GetFuncOfStruct(g.goparse.GetPkgOfFile(g.file), g.name)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	fun, exist := funcs[k]
 	if !exist {
-		return nil
+		return nil, nil
 	}
 
 	return &GoExprWithPath{
 		goparse: g.goparse,
+		openapi: g.openapi,
 		expr:    fun.Type,
+		doc:     fun.Doc,
 		file:    g.file,
 		name:    "",
 		key:     "",
-	}
+		noRef:   false,
+	}, nil
 }
 
 type GoAstToSchema struct {
 	goparse *goast.GoParse
 
+	// 已经定义了的schema
 	schemas map[string]string
 
+	// 已经解析过的schema, 用于判断无限递归
 	parsedSchema map[string]int
 
 	openapi *OpenApi
@@ -644,8 +610,17 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			return &ArraySchema{
 				Type: "array",
 				Items: &AnySchema{
-					IsAny:    true,
-					IsSchema: true,
+					IsSchema:    true,
+					IsAny:       true,
+					Description: "",
+					OneOf: []interface{}{
+						map[string]interface{}{"type": "array"},
+						map[string]interface{}{"type": "boolean"},
+						map[string]interface{}{"type": "integer"},
+						map[string]interface{}{"type": "number"},
+						map[string]interface{}{"type": "object"},
+						map[string]interface{}{"type": "string"},
+					},
 				},
 				IsSchema: true,
 			}, nil
@@ -676,11 +651,9 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			props = append(props, jsonordered.MapItem{
 				Key: key,
 				Val: ObjectProp{
-					Schema:      p,
-					Meta:        nil,
-					Description: "",
-					Tag:         nil,
-					Example:     s[key],
+					Schema: p,
+					Meta:   nil,
+					Tag:    nil,
 				},
 			})
 		}
@@ -692,27 +665,33 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 		}, nil
 	case string:
 		return &IdentSchema{
-			Type:     "string",
-			Default:  s,
-			IsSchema: true,
+			Type:        "string",
+			Default:     s,
+			Enum:        nil,
+			IsSchema:    true,
+			Description: "",
+			Example:     s,
 		}, nil
 	case int64, int, int8, int32, uint, uint64, uint32, uint8:
 		return &IdentSchema{
 			Type:     "integer",
 			Default:  s,
 			IsSchema: true,
+			Example:  s,
 		}, nil
 	case float64, float32:
 		return &IdentSchema{
 			Type:     "number",
 			Default:  s,
 			IsSchema: true,
+			Example:  s,
 		}, nil
 	case bool:
 		return &IdentSchema{
 			Type:     "boolean",
 			Default:  s,
 			IsSchema: true,
+			Example:  s,
 		}, nil
 	//case nil:
 	//	// 如果传递的是nil, 则返回空对象

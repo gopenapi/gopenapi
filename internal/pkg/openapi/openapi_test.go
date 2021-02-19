@@ -80,8 +80,9 @@ func TestCompleteOpenapi(t *testing.T) {
 	t.Logf("%s", dest)
 }
 
+// 测试 js表达式中, 结构体选择语法执行是否正确.
 func TestToSchema(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +91,12 @@ func TestToSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	//sch, err := openAPi.anyToSchema(v)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
 
 	bs, _ := json.MarshalIndent(v, " ", " ")
 	t.Logf("%s", bs)
@@ -171,7 +178,7 @@ func TestGoToSchema(t *testing.T) {
 			s, err := openAPi.anyToSchema(&GoExprWithPath{
 				goparse: openAPi.goparse,
 				expr:    def.Type,
-				doc:     def.Doc,
+				//doc:     def.Doc,
 				file:    def.File,
 				name:    def.Name,
 				key:     def.Key,

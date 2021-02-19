@@ -1,5 +1,8 @@
 package model
 
+// Pet is pet model
+// $:
+//   testMeta: a
 type Pet struct {
 	//Id is Pet ID
 	Id int64 `json:"id"`
@@ -46,7 +49,8 @@ type GetPetById struct {
 
 // DelPetParams test for allOf syntax
 // 对于组合的结构，gopenapi会尝试使用allOf + ref语法。
-type DelPetParams struct{
+// TODO: 不过为了方便在js中将schema转为params, 也会同时生产完整的objectSchema结构.
+type DelPetParams struct {
 	*Pet
 	ManagePwd string `json:"manage_pwd"`
 }

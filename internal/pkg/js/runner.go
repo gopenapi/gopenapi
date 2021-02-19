@@ -34,7 +34,7 @@ func interface2ObjKey(i interface{}) string {
 }
 
 type MemberGetter interface {
-	GetMember(k string) interface{}
+	GetMember(k string) (interface{},error)
 }
 
 func (r *Runner) run(expression ast.Expression) (interface{}, error) {
@@ -130,7 +130,7 @@ func (r *Runner) run(expression ast.Expression) (interface{}, error) {
 		case map[string]interface{}:
 			return left[id], nil
 		case MemberGetter:
-			return left.GetMember(id), nil
+			return left.GetMember(id)
 		default:
 			// TODO 非严格模式
 			// 思考: 非严格模式实际上可以不要
