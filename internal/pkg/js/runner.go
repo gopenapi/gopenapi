@@ -6,6 +6,7 @@ import (
 	"github.com/zbysir/goja-parser/ast"
 	"github.com/zbysir/goja-parser/token"
 	"strconv"
+	"strings"
 )
 
 // RunJs 运行一个js表达式, 返回值
@@ -183,6 +184,12 @@ func (r *Runner) expressionToString(de ast.Expression) string {
 		return r.expressionToString(l.Left) + "." + r.expressionToString(&l.Identifier)
 	case *ast.Identifier:
 		return l.Name.String()
+	case *ast.CallExpression:
+		args:=make([]string, len(l.ArgumentList))
+		for i, v := range l.ArgumentList {
+			args[i] = r.expressionToString(v)
+		}
+		return r.expressionToString(l.Callee)+"("+strings.Join(args,",")+")"
 	default:
 		panic(fmt.Sprintf("uncased expression Type :%T", l))
 	}

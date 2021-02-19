@@ -82,7 +82,7 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 // PutPet Update pet by ID
 //
 // $:
-//    js-body: "schema(model.Pet)"
+//    js-body: "schema(model.Pet).require('id')"
 //    js-response: |
 //     {200: {schema: schema(model.Pet), desc:"返回新的Pet"}}
 //

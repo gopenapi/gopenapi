@@ -754,6 +754,7 @@ func isSchemasComponentsKey(key []string) bool {
 	return key[0] == "components" && key[1] == "schemas"
 }
 
+// key: e.g. x-$path
 func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs []byte, err error) {
 	vm := goja.New()
 

@@ -158,6 +158,9 @@ function processSchema(s) {
   if (!s) {
     return null
   }
+  if (s.modify) {
+    console.log('s: ', JSON.stringify(s))
+  }
 
   if (s.allOf) {
     s.allOf = s.allOf.map((item) => {
@@ -182,15 +185,25 @@ function processSchema(s) {
         delete (v['tag'])
       }
 
-      if (v['x-any']){
+      if (v['x-any']) {
         delete v['x-any']
         // add 'example' property to fix bug of editor.swagger.io
-        if (!v.example){
+        if (!v.example) {
           v.example = null
         }
       }
 
       p[name] = processSchema(v)
+
+      if (s.modify) {
+        s.modify.forEach(({k, v}) => {
+          if (k === "required") {
+            if (v.indexOf(key) !== -1) {
+              p[name].required = true
+            }
+          }
+        })
+      }
     })
 
     s.properties = p

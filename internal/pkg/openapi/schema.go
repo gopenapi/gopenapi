@@ -19,6 +19,22 @@ type ObjectSchema struct {
 	Type       string               `json:"type"`
 	Properties jsonordered.MapSlice `json:"properties"`
 	IsSchema   bool                 `json:"x-schema,omitempty"`
+
+	Modify []Modify `json:"modify"`
+
+}
+
+
+// 实现装饰器语法
+// schema(model.x).require('id','name', any)
+func (o *ObjectSchema) GetMember(k string) interface{} {
+	return func(args ...interface{}) (interface{}, error) {
+		o.Modify = append(o.Modify, Modify{
+			Key:  k,
+			Args: args,
+		})
+		return o, nil
+	}
 }
 
 func (o *ObjectSchema) _schema() {}
@@ -153,6 +169,12 @@ func (a *ArraySchema) _schema() {}
 type RefSchema struct {
 	Ref      string `json:"$ref"`
 	IsSchema bool   `json:"x-schema"`
+
+}
+
+type Modify struct {
+	Key  string
+	Args []interface{}
 }
 
 func (r *RefSchema) _schema() {}
@@ -174,9 +196,9 @@ type IdentSchema struct {
 func (s *IdentSchema) _schema() {}
 
 type ErrSchema struct {
-	IsSchema bool   `json:"x-schema,omitempty"`
+	IsSchema bool `json:"x-schema,omitempty"`
 	// 用于强提示，此字段在editor中会报错。
-	Error    string `json:"error,omitempty"`
+	Error string `json:"error,omitempty"`
 	// 用于弱提示，此字段在editor中不会报错。
 	XError string `json:"x-error,omitempty"`
 }
@@ -193,8 +215,8 @@ func (n AnySchema) _schema() {
 }
 
 type AllOfSchema struct {
-	AllOf []Schema `json:"allOf"`
-	IsSchema bool `json:"x-schema"`
+	AllOf    []Schema `json:"allOf"`
+	IsSchema bool     `json:"x-schema"`
 }
 
 func (n AllOfSchema) _schema() {
@@ -436,9 +458,9 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	case *ast.StructType:
 		var props jsonordered.MapSlice
 
-		allOf :=AllOfSchema{
-			AllOf: nil,
-			IsSchema:true,
+		allOf := AllOfSchema{
+			AllOf:    nil,
+			IsSchema: true,
 		}
 		for _, f := range s.Fields.List {
 			fieldSchema, err := o.goAstToSchema(&GoExprWithPath{
