@@ -82,7 +82,7 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 // PutPet Update pet by ID
 //
 // $:
-//    js-body: "{schema: model.Pet, required: 'id'}"
+//    js-body: "{schema: model.Pet, required: ['id']}"
 //    js-response: |
 //     {200: {schema: model.Pet, desc:"返回新的Pet"}}
 //
@@ -105,7 +105,7 @@ func (h *PetHandler) PutPet(ctx *gin.Context) {
 // DelPet Delete pet that need managePwd
 //
 // $:
-//    js-params: "model.DelPetParams"
+//    js-params: "{schema: model.DelPetParams, required: ['id']}"
 //
 func (h *PetHandler) DelPet(ctx *gin.Context) {
 	var p model.DelPetParams

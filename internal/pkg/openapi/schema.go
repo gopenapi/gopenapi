@@ -12,9 +12,18 @@ import (
 
 type Schema interface {
 	_schema()
+	setRef(ref string) Schema
 }
 
+var _ Schema = &ErrSchema{}
+var _ Schema = &ObjectSchema{}
+var _ Schema = &ArraySchema{}
+var _ Schema = &AllOfSchema{}
+var _ Schema = &AnySchema{}
+var _ Schema = &IdentSchema{}
+
 type ObjectSchema struct {
+	Ref         string               `json:"$ref,omitempty"`
 	Type        string               `json:"type"`
 	Description string               `json:"description,omitempty"`
 	Properties  jsonordered.MapSlice `json:"properties"`
@@ -22,6 +31,11 @@ type ObjectSchema struct {
 
 	Modify   []Modify `json:"modify,omitempty"`
 	IsSchema bool     `json:"x-schema,omitempty"`
+}
+
+func (o *ObjectSchema) setRef(ref string) Schema {
+	o.Ref = ref
+	return o
 }
 
 // 实现装饰器语法
@@ -38,44 +52,37 @@ func (o *ObjectSchema) GetMember(k string) (interface{}, error) {
 
 func (o *ObjectSchema) _schema() {}
 
-// ObjectProp 对象的成员
-type ObjectProp struct {
-	Schema Schema               `json:"schema"`
-	Meta   jsonordered.MapSlice `json:"meta,omitempty"`
-	Tag    map[string]string    `json:"tag,omitempty"`
-}
-
 type ArraySchema struct {
+	Ref         string `json:"$ref,omitempty"`
 	Type        string `json:"type"`
 	Description string `json:"description,omitempty"`
 	Items       Schema `json:"items"`
 	IsSchema    bool   `json:"x-schema"`
 }
 
-func (a *ArraySchema) GetType() string {
-	return a.Type
+func (a *ArraySchema) setRef(ref string) Schema {
+	a.Ref = ref
+	return a
 }
 
 func (a *ArraySchema) _schema() {}
 
-type RefSchema struct {
-	Ref      string `json:"$ref"`
-	IsSchema bool   `json:"x-schema"`
-}
+//type RefSchema struct {
+//	Ref      string `json:"$ref"`
+//	IsSchema bool   `json:"x-schema"`
+//}
 
 type Modify struct {
 	Key  string
 	Args []interface{}
 }
 
-func (r *RefSchema) _schema() {}
-
-func (r *RefSchema) GetType() string {
-	return ""
-}
+//func (r *RefSchema) _schema() {}
 
 // 基础类型, string / int
 type IdentSchema struct {
+	Ref string `json:"$ref,omitempty"`
+
 	Type        string        `json:"type"`
 	Description string        `json:"description,omitempty"`
 	Default     interface{}   `json:"default,omitempty"`
@@ -87,12 +94,21 @@ type IdentSchema struct {
 
 func (s *IdentSchema) _schema() {}
 
+func (s *IdentSchema) setRef(ref string) Schema {
+	s.Ref = ref
+	return s
+}
+
 type ErrSchema struct {
 	IsSchema bool `json:"x-schema,omitempty"`
 	// 用于强提示，此字段在editor中会报错。
 	Error string `json:"error,omitempty"`
 	// 用于弱提示，此字段在editor中不会报错。
 	XError string `json:"x-error,omitempty"`
+}
+
+func (n ErrSchema) setRef(ref string) Schema {
+	panic("implement me")
 }
 
 func (n ErrSchema) _schema() {
@@ -105,15 +121,33 @@ type AnySchema struct {
 	OneOf       []interface{} `json:"oneOf"`
 }
 
+func (n AnySchema) setRef(ref string) Schema {
+	panic("implement me")
+}
+
 func (n AnySchema) _schema() {
 }
 
 type AllOfSchema struct {
-	AllOf    []Schema `json:"allOf"`
-	IsSchema bool     `json:"x-schema"`
+	AllOf []Schema `json:"allOf"`
+
+	// AllOf 也有Properties字段, 这是为了在js中使用此字段转为params数组
+	Properties jsonordered.MapSlice `json:"x-properties"`
+	IsSchema   bool                 `json:"x-schema"`
 }
 
 func (n AllOfSchema) _schema() {
+}
+
+func (n AllOfSchema) setRef(ref string) Schema {
+	panic("implement me")
+}
+
+// ObjectProp 对象的成员
+type ObjectProp struct {
+	Schema Schema               `json:"schema"`
+	Meta   jsonordered.MapSlice `json:"meta,omitempty"`
+	Tag    map[string]string    `json:"tag,omitempty"`
 }
 
 //type Expr struct {
@@ -133,69 +167,14 @@ func (n AllOfSchema) _schema() {
 //   - Pet , 返回 {当前包}.Pet
 //   - 其他情况下则认为没有唯一标识.
 func (expr *GoExprWithPath) Key() (string, error) {
-	if expr.key != "" {
-		return expr.key, nil
-	}
-
 	return expr.key, nil
-	switch s := expr.expr.(type) {
-	case *ast.ArrayType:
-		// 不处理
-		// 不支持数组生成ref.
-		// 如需支持数组, 需要定义type: `type Items []Item`, 然后使用Items生成ref
-		return "", nil
-	case *ast.Ident:
-		// 标识
-		// 如果是基础类型, 则返回空, 否则还需要继续递归.
-		if is, _ := IsBaseType(s.Name); is {
-			return "", nil
-		}
-
-		// 当前包的结构体
-		return expr.goparse.GetPkgOfFile(expr.file) + "." + s.Name, nil
-	case *ast.SelectorExpr:
-		// for model.T syntax
-		pkgName := s.X.(*ast.Ident).Name
-
-		pkgs, err := expr.goparse.GetFileImportedPkgs(expr.file)
-		if err != nil {
-			return "", err
-		}
-
-		if pkg, ispkg := pkgs[pkgName]; ispkg {
-			return pkg.Dir + "." + s.Sel.Name, nil
-		}
-
-		return "", fmt.Errorf("can't found package: %s in file: %s", pkgName, expr.file)
-	case *ast.StarExpr:
-		return "", nil
-		//ex := GoExprWithPath{
-		//	goparse: expr.goparse,
-		//	expr:    s.X,
-		//	doc:     expr.doc,
-		//	file:    expr.file,
-		//	name:    expr.name,
-		//	key:     expr.key,
-		//	noRef:   expr.noRef,
-		//}
-		//return ex.Key()
-	case *ast.StructType:
-		// 内嵌的结构体不用处理ref
-		return "", nil
-	case *ast.InterfaceType:
-		// 不处理interface
-		// 不支持处理interface的关联关系(ref).
-		return "", nil
-	default:
-		panic(fmt.Sprintf("uncase Type of GetExprKey: %T", expr.expr))
-	}
 }
 
 // goAstToSchema 将goAst转为Schema
 //
 //   expr参数是goAst
 //   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/zbysir/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
-func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
+func (o *OpenApi) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error) {
 	ga := GoAstToSchema{
 		goparse:      o.goparse,
 		schemas:      o.schemas,
@@ -203,11 +182,13 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 		openapi:      o,
 	}
 
-	return ga.goAstToSchema(expr)
+	return ga.goAstToSchema(expr, noRef)
 }
 
-func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
-	if !expr.noRef {
+func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error) {
+	if !noRef {
+		// 使用ref逻辑
+
 		// 判断此表达式是否是在schemas中定义过了，如果定义过了则使用ref语法。
 		exprKey, err := expr.Key()
 		if err != nil {
@@ -215,10 +196,11 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			return nil, err
 		}
 		if ref, ok := o.schemas[exprKey]; ok {
-			return &RefSchema{
-				Ref:      "#/" + ref,
-				IsSchema: true,
-			}, nil
+			return ref.schema.setRef("#/" + ref.yamlKey), nil
+			//return &RefSchema{
+			//	Ref:      "#/" + ref.yamlKey,
+			//	IsSchema: true,
+			//}, nil
 		}
 	}
 
@@ -247,8 +229,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			file:    expr.file,
 			name:    "",
 			key:     "",
-			noRef:   false,
-		})
+		}, false)
 		if err != nil {
 			return nil, err
 		}
@@ -272,8 +253,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			file:    expr.file,
 			name:    expr.name,
 			key:     expr.key,
-			noRef:   expr.noRef,
-		})
+		}, false)
 	case *ast.Ident:
 		// 标识
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
@@ -314,7 +294,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			file:    def.File,
 			name:    "",
 			key:     def.Key,
-		})
+		}, false)
 		//schema, err := o.goAstToSchema(def.Type, def.File)
 		if err != nil {
 			return nil, err
@@ -361,7 +341,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 				file:    str.File,
 				name:    str.Name,
 				key:     str.Key,
-			})
+			}, false)
 			if err != nil {
 				return nil, err
 			}
@@ -384,10 +364,9 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 				file:    expr.file,
 				name:    "",
 				//name:    name,
-				key:   "",
-				noRef: false,
-				doc:   f.Doc,
-			})
+				key: "",
+				doc: f.Doc,
+			}, false)
 			if err != nil {
 				return nil, err
 			}
@@ -400,20 +379,28 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 			} else if f.Tag != nil {
 				name = getExprName(f.Type)
 			} else {
+				// 对于golang的组合语法, 都使用allOf语法实现
+				//
 				// 当是嵌套, 并且没有任何tag时, 才展开子级
 				// 如果字段schema是refSchema，则使用allOf语法
 				// 如果字段是ObjectSchema，则展开
 				// 如果不是上面则情况，则当成普通字段处理
+				allOf.AllOf = append(allOf.AllOf, fieldSchema)
 				switch t := fieldSchema.(type) {
 				case *ObjectSchema:
-					props = append(props, t.Properties...)
-					continue
-				case *RefSchema:
-					allOf.AllOf = append(allOf.AllOf, t)
-					continue
-				default:
-					name = getExprName(f.Type)
+					allOf.Properties = append(allOf.Properties, t.Properties...)
 				}
+				continue
+				//switch t := fieldSchema.(type) {
+				//case *ObjectSchema:
+				//	props = append(props, t.Properties...)
+				//	continue
+				//case *RefSchema:
+				//	allOf.AllOf = append(allOf.AllOf, t)
+				//	continue
+				//default:
+				//	name = getExprName(f.Type)
+				//}
 			}
 
 			gd, err := o.openapi.parseGoDoc(f.Doc.Text(), expr.file)
@@ -445,6 +432,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 
 		if len(allOf.AllOf) != 0 {
 			allOf.AllOf = append(allOf.AllOf, schema)
+			allOf.Properties = append(allOf.Properties, props...)
 			return allOf, nil
 		}
 
@@ -471,10 +459,6 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	default:
 		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
 	}
-
-	return &ErrSchema{
-		IsSchema: true,
-	}, nil
 }
 
 // getExprName返回表达式在嵌套语法中的字段名
@@ -518,9 +502,6 @@ type GoExprWithPath struct {
 	// 当前表达式的唯一标识, 如 github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
 	// 此值有可能为空, 如 表达式是具体的某个结构体声明时无法获得key.
 	key string
-
-	// 如果设置为noref, 则此表达式转成schema时不会使用ref代替, 用于定义schema时.
-	noRef bool
 }
 
 // 在解析成json时(在js脚本中使用), 需要解析成js脚本能使用的格式, 即 GoStruct
@@ -560,7 +541,6 @@ func (g *GoExprWithPath) GetMember(k string) (interface{}, error) {
 				file:    g.file,
 				name:    "",
 				key:     "",
-				noRef:   false,
 			}, nil
 		}
 	}
@@ -584,15 +564,20 @@ func (g *GoExprWithPath) GetMember(k string) (interface{}, error) {
 		file:    g.file,
 		name:    "",
 		key:     "",
-		noRef:   false,
 	}, nil
+}
+
+type schemaSave struct {
+	yamlKey string
+	schema  Schema
 }
 
 type GoAstToSchema struct {
 	goparse *goast.GoParse
 
 	// 已经定义了的schema
-	schemas map[string]string
+	// key(def key in go) => yaml key(e.g. components/schema/Pet)
+	schemas map[string]schemaSave
 
 	// 已经解析过的schema, 用于判断无限递归
 	parsedSchema map[string]int
@@ -604,7 +589,7 @@ type GoAstToSchema struct {
 func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 	switch s := i.(type) {
 	case *GoExprWithPath:
-		return o.goAstToSchema(s)
+		return o.goAstToSchema(s, false)
 	case []interface{}:
 		if len(s) == 0 {
 			return &ArraySchema{

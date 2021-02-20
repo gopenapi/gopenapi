@@ -65,6 +65,7 @@ export default {
   // 格式化params, 支持的格式有:
   // - []: 数组, 则原封不动
   // - GoStruct: 将schema转为params
+  // - {schema: model.DelPetParams, required: ['id']}
   parseParams: function (r) {
     if (!r) {
       return null
@@ -76,55 +77,136 @@ export default {
     }
 
     if (r["x-gostruct"]) {
-      // case for GoStruct
-      if (r.schema && r.schema.type === 'object') {
-        let parmas = []
-        for (let k in r.schema.properties) {
-          let v = r.schema.properties[k]
+      // case for model.X
+      if (r.schema) {
+        let properties
+        if (r.schema.type === 'object') {
+          properties = r.schema.properties
+        } else if (r.schema.allOf) {
+          // allOf语法
+          properties = r.schema['x-properties']
+        }
 
-          let name = k
-          if (v.tag) {
-            if (v.tag['form']) {
-              name = v.tag['form']
-            } else if (v.tag['json']) {
-              name = v.tag['json']
+        if (properties) {
+          let parmas = []
+          for (let k in properties) {
+            let v = properties[k]
+
+            let name = k
+            if (v.tag) {
+              if (v.tag['form']) {
+                name = v.tag['form']
+              } else if (v.tag['json']) {
+                name = v.tag['json']
+              }
+
+              delete (v['tag'])
             }
 
-            delete (v['tag'])
+            let xin = 'query'
+
+            if (r.meta && r.meta['in']) {
+              xin = r.meta['in']
+            } else if (v.meta && v.meta['in']) {
+              xin = v.meta['in']
+            }
+
+            let required = null
+            if (r.meta && r.meta['required']) {
+              required = r.meta['required']
+            } else if (v.meta && v.meta['required']) {
+              required = v.meta['required']
+            }
+
+            // console.log('v 2', JSON.stringify(v))
+
+            let description = v.schema.description;
+            delete v.schema.description
+            let item = {
+              name: name,
+              description: description,
+              schema: processSchema(v.schema),
+              in: xin,
+            };
+
+            if (required !== null) {
+              item.required = required
+            }
+
+            parmas.push(item)
           }
-
-          let xin = 'path'
-
-          if (r.meta && r.meta['in']) {
-            xin = r.meta['in']
-          } else if (v.meta && v.meta['in']) {
-            xin = v.meta['in']
-          }
-
-          let required = false
-          if (r.meta && r.meta['required']) {
-            required = r.meta['required']
-          } else if (v.meta && v.meta['required']) {
-            required = v.meta['required']
-          }
-
-          // console.log('v 2', JSON.stringify(v))
-
-          let description = v.schema.description;
-          delete v.schema.description
-          parmas.push({
-            name: name,
-            description: description,
-            schema: processSchema(v.schema),
-            in: xin,
-            required: required,
-          })
+          return parmas
         }
-        return parmas
+      }
+    } else if (r.schema && r.schema["x-gostruct"]) {
+      // for {schema: model.DelPetParams, required: ['id']}
+      if (r.schema.schema) {
+        let properties
+        if (r.schema.schema.type === 'object') {
+          properties = r.schema.schema.properties
+        } else if (r.schema.schema.allOf) {
+          // allOf语法
+          properties = r.schema.schema['x-properties']
+        }
+
+        if (properties) {
+          let parmas = []
+          for (let k in properties) {
+            let v = properties[k]
+
+            let name = k
+            if (v.tag) {
+              if (v.tag['form']) {
+                name = v.tag['form']
+              } else if (v.tag['json']) {
+                name = v.tag['json']
+              }
+
+              delete (v['tag'])
+            }
+
+            let xin = 'query'
+
+            if (r.meta && r.meta['in']) {
+              xin = r.meta['in']
+            } else if (v.meta && v.meta['in']) {
+              xin = v.meta['in']
+            }
+
+            let required = null
+            if (r.meta && r.meta['required']) {
+              required = r.meta['required']
+            } else if (v.meta && v.meta['required']) {
+              required = v.meta['required']
+            } else if (r.required) {
+              if (r.required.indexOf(name) !== -1) {
+                required = true
+              }
+            }
+
+            // console.log('v 2', JSON.stringify(v))
+
+            let description = v.schema.description;
+            delete v.schema.description
+            let item = {
+              name: name,
+              description: description,
+              schema: processSchema(v.schema),
+              in: xin,
+            };
+
+            if (required !== null) {
+              item.required = required
+            }
+
+            parmas.push(item)
+          }
+          return parmas
+        }
       }
     }
 
-    console.warn("unexpect type of params: ", JSON.stringify(r))
+    console.warn("unexpect type of params: ", JSON.stringify(r, null, 4))
   },
 
   // 格式化requestBody
@@ -158,19 +240,18 @@ export default {
         }
       }
     } else if (r['schema'] && r['schema']['x-gostruct']) {
-      // for {schema: model.Pet, required: 'id'}
+      // for {schema: model.Pet, required: ['id']}
 
-      let schema = processSchema(r.schema.schema);
+      let schema
 
       // 处理 required
-      if (r.required ) {
-        // TODO 对于有required等值, 不能使用ref代替
-        schema.required = [r.required]
-
-        // Object.keys(schema.properties).forEach(k => {
-        //   if (k === r.required) {
-        //   }
-        // })
+      // 语法如: {schema: model.Pet, required: ['id']}
+      if (r.required && r.required.length) {
+        // 对于指定了required值, 则不能使用ref语法
+        schema = processSchema(r.schema.schema, {omitRef: true});
+        schema.required = r.required
+      } else {
+        schema = processSchema(r.schema.schema);
       }
       return {
         description: r.desc || 'body',
@@ -209,7 +290,6 @@ export default {
         let path = {
           summary: value.summary,
           description: value.description,
-          responses: responses,
         }
 
         if (params) {
@@ -218,6 +298,9 @@ export default {
         if (body) {
           path.requestBody = body
         }
+
+        path.responses = responses
+
         return path
       }
       case 'x-$schema': {
@@ -229,9 +312,21 @@ export default {
 }
 
 // processSchema process go-schema to openapi-schema.
-function processSchema(s) {
+// 注意s就算是$ref, 则包含了完整的定义, 这是为了方便在js中制定更多逻辑.
+function processSchema(s, options) {
   if (!s) {
     return null
+  }
+
+  // 忽略ref意味着删除$ref值, 而是返回全部值.
+  if (options && options.omitRef) {
+    if (s.$ref) {
+      delete s.$ref
+    }
+  } else {
+    if (s.$ref) {
+      return {$ref: s.$ref}
+    }
   }
   if (s.modify) {
     console.log('modify: ', JSON.stringify(s))
@@ -241,6 +336,7 @@ function processSchema(s) {
     s.allOf = s.allOf.map((item) => {
       return processSchema(item)
     })
+    delete s['x-properties']
   }
 
   if (s.properties) {
@@ -259,19 +355,9 @@ function processSchema(s) {
         }
         delete (v['tag'])
       }
-
-      let schema = v.schema;
-      if (schema['x-any']) {
-        delete v['x-any']
-        // add 'example' property to fix bug of editor.swagger.io
-        if (!schema.example) {
-          schema.example = null
-        }
-      }
-
       // console.log('v.schema 2', JSON.stringify(v.schema))
 
-      p[name] = processSchema(schema)
+      p[name] = processSchema(v.schema)
 
       // 处理 required
       // if (s.modify) {
@@ -294,6 +380,14 @@ function processSchema(s) {
 
   if (s['x-schema']) {
     delete s['x-schema']
+  }
+
+  if (s['x-any']) {
+    delete s['x-any']
+    // add 'example' property to fix bug of editor.swagger.io
+    if (!s.example) {
+      s.example = null
+    }
   }
 
   return s

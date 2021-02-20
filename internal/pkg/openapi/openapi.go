@@ -27,8 +27,8 @@ type OpenApi struct {
 	jsConfig string
 
 	// schemas 存放需要refs的schemas
-	// github.com/zbysir/gopenapi/internal/model.Category => Category
-	schemas map[string]string
+	// key(def key in go) => yaml key(e.g. components/schema/Pet)
+	schemas map[string]schemaSave
 }
 
 var defJsConfig = `
@@ -142,7 +142,7 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	return &OpenApi{
 		goparse:  p,
 		jsConfig: newCode,
-		schemas:  map[string]string{},
+		schemas:  map[string]schemaSave{},
 	}, nil
 }
 
@@ -178,7 +178,6 @@ func (p PkgGetter) GetMember(k string) (interface{}, error) {
 		file:    def.File,
 		name:    def.Name,
 		key:     def.Key,
-		noRef:   false,
 	}
 
 	return expr, nil
@@ -195,7 +194,6 @@ func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
 // return:
 //  可能是任何东西
 func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, error) {
-	//return nil,nil
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
 		// builtin function:
 		// - params: for parameters of openapi
@@ -232,109 +230,6 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 	}
 	return v, nil
 }
-
-// 将struct解析成 openapi.parameters
-// 返回的是[]ParamsItem.
-func (o *OpenApi) struct2ParamsList(ep *GoExprWithPath) []ParamsItem {
-	var l []ParamsItem
-	switch s := ep.expr.(type) {
-	case *ast.StructType:
-		// 父级的 meta会传递到所有子字段
-		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
-		if err != nil {
-			fmt.Printf("[err] %v", err)
-			return nil
-		}
-
-		for _, f := range s.Fields.List {
-			// 获取子字段 key
-			schema, err := o.goAstToSchema(&GoExprWithPath{
-				goparse: o.goparse,
-				expr:    f.Type,
-				doc:     f.Doc,
-				file:    ep.file,
-				//name:    name,
-				key:     "",
-				noRef:   false,
-			})
-			if err != nil {
-				fmt.Printf("[err] %v\n", err)
-				continue
-			}
-
-			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
-			if err != nil {
-				fmt.Printf("[err] %v", err)
-				continue
-			}
-
-			name := f.Names[0].Name
-			l = append(l, ParamsItem{
-				From:        "go",
-				Name:        name,
-				Tag:         encodeTag(f.Tag),
-				Description: gd.FullDoc,
-				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
-				Schema:      schema,
-			})
-		}
-	default:
-		panic(fmt.Sprintf("uncased struct2ParamsList type: %T, %+v", s, s))
-	}
-
-	return l
-}
-// 将struct解析成 openapi.parameters
-// 返回的是[]ParamsItem.
-//func (o *OpenApi) schema2ParamsList(sc Schema) []ParamsItem {
-//	var l []ParamsItem
-//	switch s := sc.(type) {
-//	case *ObjectSchema:
-//		// 父级的 meta会传递到所有子字段
-//		parentGoDoc, err := o.parseGoDoc(ep.doc.Text(), ep.file)
-//		if err != nil {
-//			fmt.Printf("[err] %v", err)
-//			return nil
-//		}
-//
-//		for _, f := range s.Properties {
-//			// 获取子字段 key
-//			schema, err := o.goAstToSchema(&GoExprWithPath{
-//				goparse: o.goparse,
-//				expr:    f.Type,
-//				doc:     f.Doc,
-//				file:    ep.file,
-//				//name:    name,
-//				key:     "",
-//				noRef:   false,
-//			})
-//			if err != nil {
-//				fmt.Printf("[err] %v\n", err)
-//				continue
-//			}
-//
-//			gd, err := o.parseGoDoc(f.Doc.Text(), ep.file)
-//			if err != nil {
-//				fmt.Printf("[err] %v", err)
-//				continue
-//			}
-//
-//			name := f.Key
-//			l = append(l, ParamsItem{
-//				From:        "go",
-//				Name:        name,
-//				Tag:         encodeTag(f.Tag),
-//				Description: gd.FullDoc,
-//				Meta:        mergeJsonMap(parentGoDoc.Meta, gd.Meta),
-//				Schema:      schema,
-//			})
-//		}
-//	default:
-//		panic(fmt.Sprintf("uncased struct2ParamsList type: %T, %+v", s, s))
-//	}
-//
-//	return l
-//}
 
 // all type of openapi: array, boolean, integer, number , object, string
 func IsBaseType(t string) (is bool, openApiType string) {
@@ -502,7 +397,8 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 
 // 入口
 // pathAndKey: e.g. github.com/zbysir/gopenapi/internal/model.Tag
-func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoStruct, exist bool, err error) {
+// noRef: 是否应该使用ref. 如果是schema定义时, 则不应该使用ref
+func (o *OpenApi) getGoStruct(pathAndKey string, noRef bool) (g *GoStruct, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)
 
 	def, exist, err := o.goparse.GetDef(p, k)
@@ -522,26 +418,23 @@ func (o *OpenApi) getGoStruct(pathAndKey string, yamlKeyRouter []string) (g *GoS
 
 	// 如果是一个结构体, 则自动转为schema
 	// 用于在 x-$schema 语法中使用
-	if _, ok := def.Type.(*ast.StructType); ok {
+	switch def.Type.(type) {
+	case *ast.StructType:
 		expr := &GoExprWithPath{
 			goparse: o.goparse,
 			openapi: o,
 			expr:    def.Type,
 			doc:     def.Doc,
-			file: def.File,
+			file:    def.File,
 			//name:    def.Name,
-			key:   def.Key,
-			noRef: false,
+			key: def.Key,
 		}
-
-		if isSchemasComponentsKey(yamlKeyRouter) {
-			expr.noRef = true
-		}
-		g.Schema, err = o.goAstToSchema(expr)
+		g.Schema, err = o.goAstToSchema(expr, noRef)
 		if err != nil {
 			err = fmt.Errorf("toSchema error: %w", err)
 			return
 		}
+		// TODO 还有其他基础类型, 如array, string, int
 	}
 
 	return
@@ -768,7 +661,20 @@ func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
 		if !inProject {
 			return
 		}
-		o.schemas[pat] = schemaKey
+
+		g, exist, err := o.getGoStruct(pat, true)
+		if err != nil {
+			return
+		}
+		if !exist {
+			log.Warningf("can't found '%s' definition on yaml: '%s'", pat, strings.Join(key, "."))
+			return
+		}
+
+		o.schemas[pat] = schemaSave{
+			schema:  g.Schema,
+			yamlKey: schemaKey,
+		}
 	})
 
 	//log.Infof("%+v", o.schemas)
@@ -836,7 +742,12 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 		// x-$xxx 语法, 将调用go注释
 		if strings.HasPrefix(key, "x-$") {
 			if v, ok := item.Value.(string); ok {
-				g, exist, err := o.getGoStruct(v, keyRouter)
+				noRef := false
+				if isSchemasComponentsKey(keyRouter) {
+					noRef = true
+				}
+
+				g, exist, err := o.getGoStruct(v, noRef)
 				if err != nil {
 					err = fmt.Errorf("full yaml '%s' fail\n  %w", strings.Join(keyRouter, "."), err)
 					return nil, err
