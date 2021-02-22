@@ -322,11 +322,11 @@ func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 	return r
 }
 
-// fullCommentMetaToJson 处理在注释中的meta
+// fullCommentMetaToJson 处理在注释中的meta, 如果是js表达式, 则会运行它.
 // 如下:
 // $path
-//   parameters: "js: [...model.FindPetByStatusParams, {name: 'status', required: true}]"
-//   resp: 'js: {200: {desc: "成功", content: [model.Pet]}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
+//   parameters: "js: model.FindPetByStatusParams"
+//   resp: 'js: {200: {desc: "成功", schema: schema([model.Pet])}, 401: {desc: "没权限", content: {msg: "没权限"}}}'
 // filename 指定当前注释在哪一个文件中, 会根据文件中import的pkg获取.
 // 返回结构体给最后组装yaml使用
 func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.MapItem, error) {
@@ -529,47 +529,6 @@ func (p ParamsList) ToYaml(useTag string) interface{} {
 	for _, p := range p {
 		r = append(r, p.ToYaml(useTag))
 	}
-
-	return r
-}
-
-// TODO 使用js脚本让用户可以自己写逻辑
-// 将元数据转成openapi.params
-func xDataToParams(t *XData, useTag string) []yaml.MapItem {
-	var r []yaml.MapItem
-
-	r = append(r, yaml.MapItem{
-		Key:   "tag",
-		Value: t.Meta["tag"],
-	})
-
-	var summary interface{} = t.Summary
-	if s := t.Meta["summary"]; s != nil {
-		summary = s
-	}
-	r = append(r, yaml.MapItem{
-		Key:   "summary",
-		Value: summary,
-	})
-
-	var description interface{} = t.Description
-	if s := t.Meta["description"]; s != nil {
-		description = s
-	}
-	r = append(r, yaml.MapItem{
-		Key:   "description",
-		Value: description,
-	})
-
-	r = append(r, yaml.MapItem{
-		Key:   "parameters",
-		Value: t.Meta["parameters"].(ParamsList).ToYaml(useTag),
-	})
-
-	r = append(r, yaml.MapItem{
-		Key:   "responses",
-		Value: t.Meta["responses"],
-	})
 
 	return r
 }

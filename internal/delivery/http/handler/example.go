@@ -5,32 +5,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zbysir/gopenapi/internal/model"
 	"github.com/zbysir/gopenapi/internal/usecase"
-	ua "github.com/zbysir/gopenapi/internal/usecase"
-)
-
-var x ua.PetUseCase
-
-// a 111
-var (
-	// a 222
-	a = 1
-	// b bbb
-	b = 1
 )
 
 type PetHandler struct {
 	u usecase.PetUseCase
 }
 
-// FindPetByStatus Is Api that do Finds Pets by status
-// .abc
+// FindPetByStatus Is Api that test for return array schema
 //
-// Multiple status values can be provided with comma separated strings
+//
 //
 // $:
 //   js-params: "model.FindPetByStatusParams"
-//   js-resp: |
-//     {200: {desc: "成功", schema: [model.Pet]},
+//   js-response: |
+//     {200: {desc: "成功", schema: schema([model.Pet])},
 //       401: "#/components/responses/401" }
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
@@ -50,7 +38,7 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	ctx.JSON(200, r)
 }
 
-// GetPet Find pet by ID
+// GetPet test for pure js
 //
 // Returns a single pet
 // $:
@@ -79,7 +67,7 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 	ctx.JSON(200, r)
 }
 
-// PutPet Update pet by ID
+// PutPet test for 'requestBody' and add 'required'
 //
 // $:
 //    js-body: "{schema: model.Pet, required: ['id']}"
@@ -102,7 +90,7 @@ func (h *PetHandler) PutPet(ctx *gin.Context) {
 	ctx.JSON(200, "ok")
 }
 
-// DelPet Delete pet that need managePwd
+// DelPet test for 'Combinatorial grammar' in go
 //
 // $:
 //    js-params: "{schema: model.DelPetParams, required: ['id']}"

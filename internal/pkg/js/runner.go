@@ -197,7 +197,7 @@ func (r *Runner) expressionToString(de ast.Expression) string {
 }
 
 func (r *Runner) newError(start, end int, err error) error {
-	return fmt.Errorf("run '%s' err: %w", r.source[start-1:end-1], err)
+	return fmt.Errorf("run js '%s' err: %w", r.source[start-1:end-1], err)
 }
 
 func interfaceAdd(a, b interface{}) interface{} {
