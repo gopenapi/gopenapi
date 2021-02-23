@@ -114,7 +114,7 @@ function parseResponses(r) {
       if (ro) {
         rsp[k] = ro["200"]
       } else {
-        console.warn("can't parse '", JSON.stringify(r[k],null,4), "' to response")
+        console.warn("can't parse '", JSON.stringify(r[k], null, 4), "' to response")
       }
     })
 
@@ -156,7 +156,9 @@ function parseParams(r) {
 
           let name = k
           if (v.tag) {
-            if (v.tag['form']) {
+            if (v.tag['uri']) {
+              name = v.tag['uri']
+            } else if (v.tag['form']) {
               name = v.tag['form']
             } else if (v.tag['json']) {
               name = v.tag['json']
@@ -218,10 +220,16 @@ function parseParams(r) {
 
           let name = k
           if (v.tag) {
-            if (v.tag['form']) {
-              name = v.tag['form']
-            } else if (v.tag['json']) {
-              name = v.tag['json']
+            if (v.tag) {
+              if (v.tag['uri']) {
+                name = v.tag['uri']
+              } else if (v.tag['form']) {
+                name = v.tag['form']
+              } else if (v.tag['json']) {
+                name = v.tag['json']
+              }
+
+              delete (v['tag'])
             }
 
             delete (v['tag'])

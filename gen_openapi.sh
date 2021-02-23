@@ -1,1 +1,1 @@
-go run main.go --input=example/petstore/petstore_simp.yaml --output=example/petstore/petstore_gen.yaml
+go run main.go --input=example/example_simp.yaml --output=example/example_gen.yaml

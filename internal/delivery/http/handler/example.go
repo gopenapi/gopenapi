@@ -11,7 +11,7 @@ type PetHandler struct {
 	u usecase.PetUseCase
 }
 
-// FindPetByStatus Is Api that test for return array schema
+// FindPetByStatus test for return array schema
 //
 //
 //
@@ -42,8 +42,8 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 //
 // Returns a single pet
 // $:
-//    js-params: "[{name: 'petId', required: true, in: 'path', schema: {type: 'string'}}]"
-//    js-resp: |
+//    js-params: "[{name: 'id', required: true, in: 'path', schema: {type: 'string'}}]"
+//    js-response: |
 //     {200: {schema: model.Pet}, 404: {desc: "Not Found Pet", schema: schema({msg: "Not Found Pet"})}, }
 //
 func (h *PetHandler) GetPet(ctx *gin.Context) {
@@ -90,7 +90,7 @@ func (h *PetHandler) PutPet(ctx *gin.Context) {
 	ctx.JSON(200, "ok")
 }
 
-// DelPet test for 'Combinatorial grammar' in go
+// DelPet test for 'go-composition' syntax
 //
 // $:
 //    js-params: "{schema: model.DelPetParams, required: ['id']}"
@@ -103,7 +103,7 @@ func (h *PetHandler) DelPet(ctx *gin.Context) {
 		return
 	}
 
-	err = h.u.UpdatePet(context.TODO(), p.Pet)
+	err = h.u.DeletePet(context.TODO(), p.Id)
 	if err != nil {
 		ctx.JSON(400, err)
 		return

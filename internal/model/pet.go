@@ -17,9 +17,6 @@ type Pet struct {
 
 	// PetStatus
 	Status PetStatus `json:"status"`
-
-	// test interface
-	X interface{} `json:"x"`
 }
 
 type Pets []Pet
@@ -48,9 +45,10 @@ type GetPetById struct {
 }
 
 // DelPetParams test for allOf syntax
-// 对于组合的结构，gopenapi会尝试使用allOf + ref语法。
-// TODO: 不过为了方便在js中将schema转为params, 也会同时生产完整的objectSchema结构.
+// 对于组合的结构，gopenapi会将它转为allOf + ref的schema。
+// 不过为了方便在js中将schema转为params, 也会同时包含properties字段.
 type DelPetParams struct {
-	*Pet
+	*GetPetById
+	// $required: true
 	ManagePwd string `json:"manage_pwd"`
 }
