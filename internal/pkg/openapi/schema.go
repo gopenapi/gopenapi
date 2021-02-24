@@ -3,9 +3,9 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/zbysir/gopenapi/internal/pkg/goast"
-	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
-	"github.com/zbysir/gopenapi/internal/pkg/log"
+	"github.com/gopenapi/gopenapi/internal/pkg/goast"
+	"github.com/gopenapi/gopenapi/internal/pkg/jsonordered"
+	"github.com/gopenapi/gopenapi/internal/pkg/log"
 	"go/ast"
 	"sort"
 )
@@ -160,7 +160,7 @@ type ObjectProp struct {
 
 // Key 返回某表达式的唯一标识.
 // 用于判断是否重复, 如 ref的生成, 递归判断.
-// 返回key格式如 pkgname.Ident, e.g. github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler
+// 返回key格式如 pkgname.Ident, e.g. github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler
 // 例:
 //   - *model.Pet, 返回 xxx/model.Pet
 //   - model.Pet , 返回 xxx/model.Pet
@@ -173,7 +173,7 @@ func (expr *GoExprWithPath) Key() (string, error) {
 // goAstToSchema 将goAst转为Schema
 //
 //   expr参数是goAst
-//   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/zbysir/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
+//   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/gopenapi/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
 func (o *OpenApi) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error) {
 	ga := GoAstToSchema{
 		goparse:      o.goparse,
@@ -324,7 +324,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 			return nil, err
 		}
 
-		if pkg, ispkg := pkgs[pkgName]; ispkg {
+		if pkg, isPkg := pkgs[pkgName]; isPkg {
 			str, exist, err := PkgGetter{
 				goparse: o.goparse,
 				pkg:     pkg,
@@ -499,7 +499,7 @@ type GoExprWithPath struct {
 	// 用于如下语法, 通过这个名字获取该结构体上的方法.
 	//   func (x X) FuncA(){}
 	name string
-	// 当前表达式的唯一标识, 如 github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
+	// 当前表达式的唯一标识, 如 github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
 	// 此值有可能为空, 如 表达式是具体的某个结构体声明时无法获得key.
 	key string
 }

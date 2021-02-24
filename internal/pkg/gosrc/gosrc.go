@@ -44,8 +44,8 @@ func NewGoSrcFromModFile(modFile string) (*GoSrc, error) {
 
 // 获取文件的绝对路径
 // e.g.
-//   path: github.com/zbysir/gopenapi/internal/model, returned: Z:\golang\go_project\gopenapi\internal\model
-//   path: github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
+//   path: github.com/gopenapi/gopenapi/internal/model, returned: Z:\golang\go_project\gopenapi\internal\model
+//   path: github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
 //   path: ./internal/delivery/http/handler/pet.go, returned: Z:\golang\go_project\gopenapi\internal\delivery\http\handler\pet.go
 // return:
 //   isInProject: 是否是本项目的地址

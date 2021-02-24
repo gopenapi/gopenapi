@@ -1,7 +1,7 @@
 package openapi
 
 import (
-	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
+	"github.com/gopenapi/gopenapi/internal/pkg/jsonordered"
 	"gopkg.in/yaml.v2"
 	"regexp"
 	"strings"

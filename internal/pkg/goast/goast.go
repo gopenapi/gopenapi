@@ -2,7 +2,7 @@ package goast
 
 import (
 	"fmt"
-	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
+	"github.com/gopenapi/gopenapi/internal/pkg/gosrc"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -199,7 +199,7 @@ type Pkgs map[string]*Pkg
 
 // GetFileImportedPkgs 获取文件中所有导入的包.
 // Tips: 目前只支持获取文件中导入的**本项目**的其他包.
-// goFilePath: github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go
+// goFilePath: github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go
 func (g *GoParse) GetFileImportedPkgs(filePath string) (pkgs Pkgs, err error) {
 	absPath, err := g.gosrc.MustGetAbsPath(filePath)
 	if err != nil {
@@ -248,7 +248,7 @@ func (g *GoParse) GetFileImportedPkgs(filePath string) (pkgs Pkgs, err error) {
 }
 
 // GetPkgOfFile 获取文件所在的pkg
-// github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go 返回 github.com/zbysir/gopenapi/internal/delivery/http/handler
+// github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go 返回 github.com/gopenapi/gopenapi/internal/delivery/http/handler
 func (g *GoParse) GetPkgOfFile(filePath string) (pkg string) {
 	x := strings.LastIndexByte(filePath, '/')
 	if x == -1 {

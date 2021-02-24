@@ -8,7 +8,7 @@ func TestNewGoSrcFromModFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path, exist, err := gos.GetAbsPath("github.com/zbysir/gopenapi/internal/model")
+	path, exist, err := gos.GetAbsPath("github.com/gopenapi/gopenapi/internal/model")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -16,7 +16,7 @@ func TestNewGoSrcFromModFile(t *testing.T) {
 	t.Logf("%+v %+v", exist, path)
 
 
-	path, exist, err = gos.GetAbsPath("github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+	path, exist, err = gos.GetAbsPath("github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 	}

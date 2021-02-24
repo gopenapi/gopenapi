@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/zbysir/gopenapi/internal/model"
+	"github.com/gopenapi/gopenapi/internal/model"
 )
 
 type OtherHandler struct {

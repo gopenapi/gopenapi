@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/zbysir/gopenapi/internal/model"
-	"github.com/zbysir/gopenapi/internal/usecase"
+	"github.com/gopenapi/gopenapi/internal/model"
+	"github.com/gopenapi/gopenapi/internal/usecase"
 )
 
 type PetHandler struct {

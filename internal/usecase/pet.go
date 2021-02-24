@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"context"
-	"github.com/zbysir/gopenapi/internal/model"
+	"github.com/gopenapi/gopenapi/internal/model"
 )
 
 type PetUseCase interface {

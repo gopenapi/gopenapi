@@ -7,11 +7,11 @@ import (
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
-	"github.com/zbysir/gopenapi/internal/pkg/goast"
-	"github.com/zbysir/gopenapi/internal/pkg/gosrc"
-	"github.com/zbysir/gopenapi/internal/pkg/js"
-	"github.com/zbysir/gopenapi/internal/pkg/jsonordered"
-	"github.com/zbysir/gopenapi/internal/pkg/log"
+	"github.com/gopenapi/gopenapi/internal/pkg/goast"
+	"github.com/gopenapi/gopenapi/internal/pkg/gosrc"
+	"github.com/gopenapi/gopenapi/internal/pkg/js"
+	"github.com/gopenapi/gopenapi/internal/pkg/jsonordered"
+	"github.com/gopenapi/gopenapi/internal/pkg/log"
 	"go/ast"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -390,7 +390,7 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 }
 
 // 入口
-// pathAndKey: e.g. github.com/zbysir/gopenapi/internal/model.Tag
+// pathAndKey: e.g. github.com/gopenapi/gopenapi/internal/model.Tag
 // noRef: 是否应该使用ref. 如果是schema定义时, 则不应该使用ref
 func (o *OpenApi) getGoStruct(pathAndKey string, noRef bool) (g *GoStruct, exist bool, err error) {
 	p, k := splitPkgPath(pathAndKey)

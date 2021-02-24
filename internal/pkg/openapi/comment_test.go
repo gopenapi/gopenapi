@@ -22,7 +22,7 @@ $js-d: '{a: 1, b: schema(model.Pet)}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	x, err := openAPi.parseGoDoc(abc, "github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+	x, err := openAPi.parseGoDoc(abc, "github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 		return

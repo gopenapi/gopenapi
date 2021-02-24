@@ -1,6 +1,6 @@
 package main
 
-import "github.com/zbysir/gopenapi/internal/cmd"
+import "github.com/gopenapi/gopenapi/internal/cmd"
 
 func main() {
 	_ = cmd.Execute()
