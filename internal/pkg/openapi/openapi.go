@@ -353,12 +353,6 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 					return nil, fmt.Errorf("run js express fail: %w", err)
 				}
 
-				//sch, err := o.anyToSchema(v)
-				//if err != nil {
-				//	return nil, fmt.Errorf("to schema error: %w", err)
-				//}
-
-				//log.Infof("xxxxxxxx %v", sch)
 				r = append(r, yaml.MapItem{
 					Key:   item.Key,
 					Value: v,
@@ -743,6 +737,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 					log.Errorf("Unexpected result on Marshal,\n  want: %s\n  got:  %s", outBs, bsxxx)
 				}
 				x := jsonItemToYamlItem(outI)
+
 				out = append(out, x...)
 				continue
 			}
@@ -765,5 +760,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 
 		out = append(out, item)
 	}
+
+	out = mergeYamlMap(out)
 	return
 }

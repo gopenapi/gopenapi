@@ -22,25 +22,17 @@ servers:
   - url: http://petstore.swagger.io/v2
 
 tags:
-  - name: pet
-    description: Everything about your Pets
-    externalDocs:
-      description: Find out more
-      url: http://swagger.io
-  - name: store
-    description: Access to Petstore orders
-  - name: user
-    description: Operations about user
-    externalDocs:
-      description: Find out more about our store
-      url: http://swagger.io
+  - name: Regular
+    description: Test all features
+  - name: Edge
+    description: Test things that are prone to bugs
 
 paths:
   /pet/findByStatus:
     get:
       x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
       tags:
-        - pet
+        - Regular
       security:
         - petstore_auth:
             - write:pets
@@ -49,7 +41,7 @@ paths:
     get:
       x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.GetPet
       tags:
-        - pet
+        - Regular
       operationId: getPetById
       security:
         - api_key: []
@@ -57,15 +49,29 @@ paths:
     delete:
       x-$path: ./internal/delivery/http/handler.PetHandler.DelPet
       tags:
-        - pet
+        - Regular
+      security:
+        - api_key: []
+  /pet:
+    put:
+      x-$path: ./internal/delivery/http/handler.PetHandler.PutPet
+      # They will be merged if they have same key.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - name
+      tags:
+        - Regular
       security:
         - api_key: []
 
-  /pet:
+  /test_recursion:
     post:
-      x-$path: ./internal/delivery/http/handler.PetHandler.PutPet
+      x-$path: ./internal/delivery/http/handler.OtherHandler.TestRecursion
       tags:
-        - pet
+        - Edge
       security:
         - api_key: []
 

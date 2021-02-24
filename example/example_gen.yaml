@@ -21,18 +21,10 @@ servers:
 - url: https://petstore.swagger.io/v2
 - url: http://petstore.swagger.io/v2
 tags:
-- name: pet
-  description: Everything about your Pets
-  externalDocs:
-    description: Find out more
-    url: http://swagger.io
-- name: store
-  description: Access to Petstore orders
-- name: user
-  description: Operations about user
-  externalDocs:
-    description: Find out more about our store
-    url: http://swagger.io
+- name: Regular
+  description: Test all features
+- name: Edge
+  description: Test things that are prone to bugs
 paths:
   /pet/findByStatus:
     get:
@@ -64,7 +56,7 @@ paths:
         "401":
           $ref: '#/components/responses/401'
       tags:
-      - pet
+      - Regular
       security:
       - petstore_auth:
         - write:pets
@@ -98,7 +90,7 @@ paths:
                     default: Not Found Pet
                     example: Not Found Pet
       tags:
-      - pet
+      - Regular
       operationId: getPetById
       security:
       - api_key: []
@@ -121,12 +113,12 @@ paths:
         "200":
           $ref: '#/components/responses/200'
       tags:
-      - pet
+      - Regular
       security:
       - api_key: []
   /pet:
-    post:
-      summary: PutPet test for 'requestBody' and add 'required'
+    put:
+      summary: 'PutPet test for ''requestBody'' and add custom attribute: ''required'''
       description: ""
       requestBody:
         description: body
@@ -141,6 +133,10 @@ paths:
                   description: Id is Pet ID
                 category:
                   $ref: '#/components/schemas/Category'
+                photoUrls:
+                  type: array
+                  items:
+                    type: string
                 name:
                   type: string
                   description: Name is Pet name
@@ -158,6 +154,7 @@ paths:
                   - sold
               required:
               - id
+              - name
       responses:
         "200":
           description: 返回新的Pet
@@ -166,7 +163,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/Pet'
       tags:
-      - pet
+      - Regular
+      security:
+      - api_key: []
+  /test_recursion:
+    post:
+      summary: TestRecursion
+      description: ""
+      requestBody:
+        description: body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestRecursion'
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestRecursion'
+      tags:
+      - Edge
       security:
       - api_key: []
 components:
@@ -194,6 +212,10 @@ components:
           description: Id is Pet ID
         category:
           $ref: '#/components/schemas/Category'
+        photoUrls:
+          type: array
+          items:
+            type: string
         name:
           type: string
           description: Name is Pet name

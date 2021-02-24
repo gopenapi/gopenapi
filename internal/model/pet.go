@@ -10,6 +10,8 @@ type Pet struct {
 	// Category Is pet category
 	Category Category `json:"category"`
 
+	PhotoUrls []string `json:"photoUrls"`
+
 	// Name is Pet name
 	Name string `json:"name"`
 	// Tag is Pet Tag

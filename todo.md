@@ -22,6 +22,6 @@
 - [x] 关联ref
   除了 components/schemas下声明的schemas, 其他引用的schemas都会使用ref关联.
 
-- [ ] 覆盖生成的yaml
+- [x] 覆盖生成的yaml
 
-- [ ] 简化go注释语法, 可以将schema 和 params 方法的逻辑移到js中
+- [x] 简化go注释语法, 可以将schema 和 params 方法的逻辑移到js中

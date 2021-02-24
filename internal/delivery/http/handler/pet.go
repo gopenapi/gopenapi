@@ -13,8 +13,6 @@ type PetHandler struct {
 
 // FindPetByStatus test for return array schema
 //
-//
-//
 // $:
 //   js-params: "model.FindPetByStatusParams"
 //   js-response: |
@@ -67,7 +65,7 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 	ctx.JSON(200, r)
 }
 
-// PutPet test for 'requestBody' and add 'required'
+// PutPet test for 'requestBody' and add custom attribute: 'required'
 //
 // $:
 //    js-body: "{schema: model.Pet, required: ['id']}"
