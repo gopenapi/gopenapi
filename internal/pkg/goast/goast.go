@@ -89,6 +89,9 @@ func (g *GoParse) GetDef(pkgDir string, key string) (def *Def, exist bool, err e
 		if !exist {
 			return nil, false, nil
 		}
+		fun.File, err = g.gosrc.GetPkgPath(fun.File)
+		fun.Key, err = g.gosrc.GetPkgPath(fun.Key)
+
 		return fun, true, nil
 	}
 
@@ -206,12 +209,13 @@ func (g *GoParse) GetFileImportedPkgs(filePath string) (pkgs Pkgs, err error) {
 		return
 	}
 
-	// todo get from cache if parsed dir before.
+	// todo get from cache if is parsed dir before.
 	fs := token.NewFileSet()
 	f, err := parser.ParseFile(fs, absPath, nil, parser.ParseComments|parser.AllErrors)
 	if err != nil {
 		return
 	}
+
 	pkgs = make(map[string]*Pkg)
 	for _, imp := range f.Imports {
 		importPath := strings.Trim(imp.Path.Value, `"'`)

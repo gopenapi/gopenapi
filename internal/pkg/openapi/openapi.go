@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -196,9 +197,7 @@ func (p PkgGetter) GetStruct(k string) (def *goast.Def, exist bool, err error) {
 func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, error) {
 	v, err := js.RunJs(code, func(name string) (interface{}, error) {
 		// builtin function:
-		// - params: for parameters of openapi
 		// - schema: for schemas of openapi
-		// - body: for requestBody of openapi
 		switch name {
 		case "schema":
 			return func(args ...interface{}) (interface{}, error) {
@@ -220,6 +219,26 @@ func (o *OpenApi) runJsExpress(code string, goFilePath string) (interface{}, err
 					pkg:     pkg,
 					openApi: o,
 				}, nil
+			}
+
+			// 判断是否是当前包的定义
+			pkg := o.goparse.GetPkgOfFile(goFilePath)
+			def, exist, err := o.goparse.GetDef(pkg, name)
+			if err != nil {
+				return nil, err
+			}
+
+			if exist {
+				expr := &GoExprWithPath{
+					goparse: o.goparse,
+					openapi: o,
+					expr:    def.Type,
+					doc:     def.Doc,
+					file:    def.File,
+					name:    def.Name,
+					key:     def.Key,
+				}
+				return expr, nil
 			}
 		}
 
@@ -332,6 +351,40 @@ func yamlKeyToString(key interface{}) string {
 	}
 }
 
+// guessIsJs 猜测是否是js
+// 满足以下条件:
+// - 以{}或[]包裹的字符串
+// - model.X 格式
+// - 函数调用: 目前只有schema()
+func (o *OpenApi) guessIsJs(s string, filePath string) bool {
+	//return false
+	if len(s) < 2 {
+		return false
+	}
+	if s[0] == '{' && s[len(s)-1] == '}' {
+		return true
+	}
+	if s[0] == '[' && s[len(s)-1] == ']' {
+		return true
+	}
+	// 匹配model.Pet 和 Pet
+	reg := regexp.MustCompile(`^\w+(\.\w+)?$`)
+	if reg.MatchString(s) {
+		// 由于字母格式太常见, 所以还需要再次校验, 只有在go中定义了的结构体才能被当做js
+		//o.getGoStruct()
+		v, err := o.runJsExpress(s, filePath)
+		if err != nil {
+			return false
+		}
+		return v != nil
+	}
+
+	if strings.HasPrefix(s, "schema(") && strings.HasSuffix(s, ")") {
+		return true
+	}
+	return false
+}
+
 // fullCommentMetaToJson 处理在注释中的meta, 如果是js表达式, 则会运行它.
 // 如下:
 // $path
@@ -355,21 +408,26 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 
 		switch v := item.Value.(type) {
 		case string:
+			jsCode := ""
 			if strings.HasPrefix(v, "js: ") {
-				// 处理js 为yaml对象
-				jsCode := strings.Trim(v[3:], " ")
-				v, err := o.runJsExpress(jsCode, filename)
-				if err != nil {
-					return nil, fmt.Errorf("run js express fail: %w", err)
-				}
+				jsCode = strings.Trim(v[3:], " ")
 
-				r = append(r, yaml.MapItem{
-					Key:   item.Key,
-					Value: v,
-				})
 			} else if strings.HasPrefix(v, "<") && strings.HasSuffix(v, ">") {
 				// 处理js 为yaml对象
-				jsCode := strings.Trim(v[1:len(v)-1], " ")
+				jsCode = strings.Trim(v[1:len(v)-1], " ")
+			} else {
+				// 猜测是否是js
+				// 满足以下条件:
+				// - 以{}或[]包裹的字符串
+				// - model.X 格式
+				// - 函数调用: 目前只有schema()
+				if o.guessIsJs(v, filename) {
+					jsCode = v
+				}
+			}
+
+			if jsCode != "" {
+				// 处理js 为yaml对象
 				v, err := o.runJsExpress(jsCode, filename)
 				if err != nil {
 					return nil, fmt.Errorf("run js express fail: %w", err)

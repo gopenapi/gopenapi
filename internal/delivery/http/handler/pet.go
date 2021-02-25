@@ -14,9 +14,9 @@ type PetHandler struct {
 // FindPetByStatus test for return array schema
 //
 // $:
-//   params: <model.FindPetByStatusParams>
+//   params: model.FindPetByStatusParams
 //   response:
-//     200: "js: {desc: '成功', schema: schema([model.Pet])}"
+//     200: {desc: '成功', schema: "schema([model.Pet])"}
 //     401: "#401"
 //
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
@@ -40,10 +40,10 @@ func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 //
 // Returns a single pet
 // $:
-//    params: "js: [{name: 'id', required: true, in: 'path', schema: {type: 'string'}}]"
+//    params: "[{name: 'id', required: true, in: 'path', schema: {type: 'string'}}]"
 //    response:
-//      200: <model.Pet>
-//      404: {desc: 'Not Found Pet', schema: "js: schema({msg: 'Not Found Pet'})"}
+//      200: model.Pet
+//      404: {desc: 'Not Found Pet', schema: "schema({msg: 'Not Found Pet'})"}
 func (h *PetHandler) GetPet(ctx *gin.Context) {
 	var p model.GetPetById
 	err := ctx.ShouldBindUri(&p)
@@ -68,8 +68,8 @@ func (h *PetHandler) GetPet(ctx *gin.Context) {
 // PutPet test for 'requestBody' and add custom attribute: 'required'
 //
 // $:
-//    body: {schema: <model.Pet>, required: [id]}
-//    response: {desc: "返回新的Pet", schema: <model.Pet>}
+//    body: {schema: model.Pet, required: [id]}
+//    response: {desc: "返回新的Pet", schema: model.Pet}
 func (h *PetHandler) PutPet(ctx *gin.Context) {
 	var p model.Pet
 	err := ctx.ShouldBind(&p)
@@ -89,7 +89,7 @@ func (h *PetHandler) PutPet(ctx *gin.Context) {
 // DelPet test for 'go-composition' syntax
 //
 // $:
-//    params: {schema: <model.DelPetParams>, required: ['id']}
+//    params: {schema: model.DelPetParams, required: ['id']}
 func (h *PetHandler) DelPet(ctx *gin.Context) {
 	var p model.DelPetParams
 	err := ctx.ShouldBind(&p)

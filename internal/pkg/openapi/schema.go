@@ -506,7 +506,6 @@ type GoExprWithPath struct {
 
 // 在解析成json时(在js脚本中使用), 需要解析成js脚本能使用的格式, 即 GoStruct
 func (g *GoExprWithPath) MarshalJSON() ([]byte, error) {
-
 	str, err := g.openapi.parseGoDoc(g.doc.Text(), g.file)
 	if err != nil {
 		err = fmt.Errorf("parseGoDoc error: %w", err)
@@ -525,6 +524,7 @@ func (g *GoExprWithPath) MarshalJSON() ([]byte, error) {
 
 // 如果类型是 结构体, 则还需要查询到子方法或者子成员
 func (g *GoExprWithPath) GetMember(k string) (interface{}, error) {
+	// 如果类型是 结构体, 则还需要查询到子方法或者子成员
 	str, ok := g.expr.(*ast.StructType)
 	if !ok {
 		return nil, nil

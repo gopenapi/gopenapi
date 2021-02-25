@@ -32,7 +32,7 @@ type Def struct {
 
 	// 只有方法定义有这个值
 	FuncRecv *ast.FieldList `json:"-"`
-	// 定义在哪个文件
+	// 定义在哪个文件(相对路径), e.g. github.com/gopenapi/gopenapi/internal/model/pet.go
 	File string
 	Doc  *ast.CommentGroup
 }
