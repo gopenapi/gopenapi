@@ -44,14 +44,14 @@ paths:
         - Regular
       operationId: getPetById
       security:
-        - api_key: []
+        - api_key: [ ]
 
     delete:
       x-$path: ./internal/delivery/http/handler.PetHandler.DelPet
       tags:
         - Regular
       security:
-        - api_key: []
+        - api_key: [ ]
   /pet:
     put:
       x-$path: ./internal/delivery/http/handler.PetHandler.PutPet
@@ -65,7 +65,7 @@ paths:
       tags:
         - Regular
       security:
-        - api_key: []
+        - api_key: [ ]
 
   /test_recursion:
     post:
@@ -73,7 +73,7 @@ paths:
       tags:
         - Edge
       security:
-        - api_key: []
+        - api_key: [ ]
 
 components:
   schemas:

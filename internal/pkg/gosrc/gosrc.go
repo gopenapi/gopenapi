@@ -86,7 +86,7 @@ func (s *GoSrc) MustGetAbsPath(path string) (absDir string, err error) {
 	return
 }
 
-// FormatPath 会格式化用户在yaml中写的路径为规范路径(即包含module名字的完整路径)
+// FormatPath 会格式化用户在yaml中写的路径为规范路径, 即将相对路径转换为包含module名字的完整路径
 func (s *GoSrc) FormatPath(path string) (fp string, isInProject bool) {
 	if strings.HasPrefix(path, s.ModuleName) {
 		fp = path

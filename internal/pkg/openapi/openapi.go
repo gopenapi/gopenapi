@@ -774,53 +774,52 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 
 		// x-$xxx 语法, 将调用go注释
 		if strings.HasPrefix(key, "x-$") {
-			if v, ok := item.Value.(string); ok {
-				noRef := false
-				if isSchemasComponentsKey(keyRouter) {
-					noRef = true
-				}
-
-				g, exist, err := o.getGoStruct(v, noRef)
-				if err != nil {
-					err = fmt.Errorf("full yaml '%s' fail\n  %w", strings.Join(keyRouter, "."), err)
-					return nil, err
-				}
-				if !exist {
-					log.Warningf("error at %s : can't resolve path: %s", strings.Join(keyRouter, "."), v)
-					out = append(out, yaml.MapItem{
-						Key:   key,
-						Value: fmt.Sprintf("gopenapi-err, can't resolve path: %s", v),
-					})
-					continue
-				}
-
-				inbs, err := json.Marshal(g)
-				if err != nil {
-					return nil, err
-				}
-
-				outBs, err := o.runConfigJs(key, inbs, keyRouter)
-				if err != nil {
-					return nil, err
-				}
-
-				// 让json有序的转为yaml
-				var outI jsonordered.MapSlice
-
-				err = json.Unmarshal(outBs, &outI)
-				if err != nil {
-					return nil, err
-				}
-
-				bsxxx, _ := json.Marshal(outI)
-				if !bytes.Equal(bsxxx, outBs) {
-					log.Errorf("Unexpected result on Marshal,\n  want: %s\n  got:  %s", outBs, bsxxx)
-				}
-				x := jsonItemToYamlItem(outI)
-
-				out = append(out, x...)
+			vStr, ok := item.Value.(string)
+			if !ok {
+				out = append(out, item)
 				continue
 			}
+			_, isGoKey := o.goparse.FormatPath(vStr)
+			if !isGoKey {
+				out = append(out, item)
+				continue
+			}
+
+			noRef := isSchemasComponentsKey(keyRouter)
+			g, exist, err2 := o.getGoStruct(vStr, noRef)
+			if err2 != nil {
+				err2 = fmt.Errorf("full yaml '%s' fail\n  %w", strings.Join(keyRouter, "."), err2)
+				return nil, err2
+			}
+			if !exist {
+				log.Warningf("error at %s : can't resolve path: %s", strings.Join(keyRouter, "."), vStr)
+				out = append(out, yaml.MapItem{
+					Key:   key,
+					Value: fmt.Sprintf("gopenapi-err, can't resolve path: %s", vStr),
+				})
+				continue
+			}
+			inbs, err2 := json.Marshal(g)
+			if err2 != nil {
+				return nil, err2
+			}
+			outBs, err2 := o.runConfigJs(key, inbs, keyRouter)
+			if err2 != nil {
+				return nil, err2
+			}
+			// 让json有序的转为yaml
+			var outI jsonordered.MapSlice
+			err2 = json.Unmarshal(outBs, &outI)
+			if err2 != nil {
+				return nil, err2
+			}
+			bsxxx, _ := json.Marshal(outI)
+			if !bytes.Equal(bsxxx, outBs) {
+				log.Errorf("Unexpected result on Marshal,\n  want: %s\n  got:  %s", outBs, bsxxx)
+			}
+			x := jsonItemToYamlItem(outI)
+			out = append(out, x...)
+			continue
 		}
 
 		switch v := item.Value.(type) {
