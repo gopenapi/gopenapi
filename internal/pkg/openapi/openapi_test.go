@@ -14,7 +14,7 @@ func TestRunJsExpress(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, err := openAPi.runJsExpress("[...params(model.FindPetByStatusParams), {name: 'status', required: true}]",
-		"github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+		"github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestToSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, err := openAPi.runJsExpress("schema([model.Pet])",
-		"github.com/zbysir/gopenapi/internal/delivery/http/handler/pet.go")
+		"github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestGetGoDocForFun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoStruct("github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus", false)
+	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus", false)
 	if err != nil {
 		return
 	}
@@ -114,7 +114,7 @@ func TestGetGoDocForStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoStruct("github.com/zbysir/gopenapi/internal/model.Pet", false)
+	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/model.Pet", false)
 	if err != nil {
 		return
 	}
@@ -140,11 +140,11 @@ func TestWorkSchemas(t *testing.T) {
 components:
   schemas:
     Category:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Category
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.Category
     Tag:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Tag
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.Tag
     Pet:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.Pet
       required:
         - name
         - photoUrls

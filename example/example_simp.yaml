@@ -30,7 +30,7 @@ tags:
 paths:
   /pet/findByStatus:
     get:
-      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
+      x-$path: github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
       tags:
         - Regular
       security:
@@ -39,7 +39,7 @@ paths:
             - read:pets
   /pet/{id}:
     get:
-      x-$path: github.com/zbysir/gopenapi/internal/delivery/http/handler.PetHandler.GetPet
+      x-$path: github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.GetPet
       tags:
         - Regular
       operationId: getPetById
@@ -78,13 +78,13 @@ paths:
 components:
   schemas:
     Category:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Category
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.Category
     Tag:
       x-$schema: ./internal/model.Tag
     Pet:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.Pet
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.Pet
     TestRecursion:
-      x-$schema: github.com/zbysir/gopenapi/internal/model.TestRecursion
+      x-$schema: github.com/gopenapi/gopenapi/internal/model.TestRecursion
 
   responses:
     200:

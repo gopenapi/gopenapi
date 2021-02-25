@@ -1,4 +1,4 @@
-module github.com/zbysir/gopenapi
+module github.com/gopenapi/gopenapi
 
 go 1.14
 

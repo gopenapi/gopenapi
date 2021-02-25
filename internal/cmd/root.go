@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"github.com/spf13/cobra"
-	"github.com/zbysir/gopenapi/internal/pkg/openapi"
+	"github.com/gopenapi/gopenapi/internal/pkg/openapi"
 	"io/ioutil"
 	"os"
 )

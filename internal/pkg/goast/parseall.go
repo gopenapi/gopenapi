@@ -26,7 +26,7 @@ func NewParseAll() *parseAll {
 type Def struct {
 	// Name 是 `type Tag struct{}` 中的 Tag
 	Name string
-	// Key 是 唯一标识. e.g. github.com/zbysir/gopenapi/internal/model.Tag
+	// Key 是 唯一标识. e.g. github.com/gopenapi/gopenapi/internal/model.Tag
 	Key  string
 	Type ast.Expr `json:"-"`
 
