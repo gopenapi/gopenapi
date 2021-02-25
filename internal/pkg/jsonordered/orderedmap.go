@@ -12,8 +12,8 @@ type MapSlice []MapItem
 
 // MapItem is an item in a MapSlice.
 type MapItem struct {
-	Key string
-	Val interface{}
+	Key  string
+	Valx interface{}
 }
 
 func (j *MapSlice) UnmarshalJSON(bytes []byte) error {
@@ -24,8 +24,8 @@ func (j *MapSlice) UnmarshalJSON(bytes []byte) error {
 		}
 
 		*j = append(*j, MapItem{
-			Key: string(key),
-			Val: item,
+			Key:  string(key),
+			Valx: item,
 		})
 
 		return nil
@@ -85,7 +85,7 @@ func (j MapSlice) MarshalJSON() ([]byte, error) {
 	var bs = []byte(`{}`)
 	var err error
 	for _, item := range j {
-		itembs, err := json.Marshal(item.Val)
+		itembs, err := json.Marshal(item.Valx)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +101,7 @@ func (j MapSlice) MarshalJSON() ([]byte, error) {
 func (j MapSlice) Get(key string) (v interface{}, exist bool) {
 	for _, item := range j {
 		if item.Key == key {
-			return item.Val, true
+			return item.Valx, true
 		}
 	}
 

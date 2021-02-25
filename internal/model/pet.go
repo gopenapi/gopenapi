@@ -4,7 +4,7 @@ package model
 // $:
 //   testMeta: a
 type Pet struct {
-	//Id is Pet ID
+	// Id is Pet ID
 	Id int64 `json:"id"`
 
 	// Category Is pet category

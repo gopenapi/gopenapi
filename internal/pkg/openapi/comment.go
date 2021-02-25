@@ -103,22 +103,6 @@ func (o *OpenApi) parseGoDoc(doc string, filepath string) (*GoStruct, error) {
 
 // 组合多个yaml对象
 func combinObj(o ...[]yaml.MapItem) []yaml.MapItem {
-	// 判断重复, 重复直接覆盖.
-	//keyMap := map[string]int{}
-	//
-	//var r []yaml.MapItem
-	//for _, item := range o {
-	//	for _, item := range item {
-	//		if _, ok := keyMap[item.Key.(string)]; ok {
-	//			r[keyMap[item.Key.(string)]] = item
-	//			keyMap[item.Key.(string)] = len(r) - 1
-	//		} else {
-	//			r = append(r, item)
-	//			keyMap[item.Key.(string)] = len(r) - 1
-	//		}
-	//	}
-	//}
-
 	var r []yaml.MapItem
 	for _, item := range o {
 		r = append(r, item...)
@@ -129,15 +113,14 @@ func combinObj(o ...[]yaml.MapItem) []yaml.MapItem {
 // parseYaml: 处理yaml中的js表达式
 func (o *OpenApi) parseYaml(y string, filepath string) ([]yaml.MapItem, error) {
 	var i []yaml.MapItem
-	err := yaml.Unmarshal([]byte(y),
-		&i)
+	err := yaml.Unmarshal([]byte(y), &i)
 	if err != nil {
 		return nil, err
 	}
 
 	var allObj []yaml.MapItem
 	// 删除 $符号
-	// 删除顶级的$
+	// 删除顶级的$, 将子级作为一级
 	for _, item := range i {
 		key := item.Key.(string)
 		if key == "$" {
@@ -151,7 +134,7 @@ func (o *OpenApi) parseYaml(y string, filepath string) ([]yaml.MapItem, error) {
 		allObj = append(allObj, item)
 	}
 
-	// 将go:语法转换为一个完整的json
+	// 将yaml中的特殊语法(如 js表达式)转换为一个完整的yaml
 	fulled, err := o.fullCommentMeta(allObj, filepath)
 	if err != nil {
 		return nil, err

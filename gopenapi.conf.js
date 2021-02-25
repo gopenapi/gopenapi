@@ -11,14 +11,33 @@ export default {
           description: value.description,
         }
 
+        if (value.meta.tags) {
+          if (typeof value.meta.tags === 'string') {
+            path.tags = value.meta.tags.split(',').map(i => i.trim())
+          } else {
+            path.tags = value.meta.tags
+          }
+        }
+
         if (params) {
           path.parameters = params
         }
         if (body) {
           path.requestBody = body
         }
-
         path.responses = responses
+
+        if (value.meta.security) {
+          path.security = value.meta.security.map((i) => {
+            // for 'security: [token]
+            if (typeof i === 'string') {
+              return {[i]: []}
+            } else {
+              // for 'security: [{token:write}]'
+              return i
+            }
+          })
+        }
 
         return path
       }
@@ -45,10 +64,10 @@ function parseResponses(r) {
     }
   }
   // key全部是数字
-  let keyLen = Object.keys(r).length;
-  let allIsInt = keyLen !== 0 && Object.keys(r).filter(i => {
-    return parseInt(i) > 0
-  }).length === keyLen
+  let keys = Object.keys(r);
+  let allIsInt = keys.length !== 0 && keys.findIndex(i => {
+    return isNaN(parseInt(i))
+  }) === -1
 
   if (r['x-gostruct']) {
     // case for model.X
@@ -109,7 +128,7 @@ function parseResponses(r) {
   } else if (allIsInt) {
     // case for {200: xxx, 400: xxx}
     let rsp = {}
-    Object.keys(r).forEach(k => {
+    keys.forEach(k => {
       let ro = parseResponses(r[k]);
       if (ro) {
         rsp[k] = ro["200"]
@@ -162,6 +181,10 @@ function parseParams(r) {
               name = v.tag['form']
             } else if (v.tag['json']) {
               name = v.tag['json']
+            }
+
+            if (name === "-") {
+              continue
             }
 
             delete (v['tag'])
@@ -227,6 +250,9 @@ function parseParams(r) {
                 name = v.tag['form']
               } else if (v.tag['json']) {
                 name = v.tag['json']
+              }
+              if (name === "-") {
+                continue
               }
 
               delete (v['tag'])

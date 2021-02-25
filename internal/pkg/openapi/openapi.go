@@ -251,20 +251,19 @@ func IsBaseType(t string) (is bool, openApiType string) {
 	return
 }
 
-// 这里没有case []interface, 可能会出现问题
-func yamlItemToJsonItem(i []yaml.MapItem) []jsonordered.MapItem {
-	r := make([]jsonordered.MapItem, len(i))
-	for i, item := range i {
+func yamlItemToJsonItem(i []yaml.MapItem) jsonordered.MapSlice {
+	r := make(jsonordered.MapSlice, len(i))
+	for ii, item := range i {
 		switch v := item.Value.(type) {
 		case []yaml.MapItem:
-			r[i] = jsonordered.MapItem{
-				Key: item.Key.(string),
-				Val: yamlItemToJsonItem(v),
+			r[ii] = jsonordered.MapItem{
+				Key:  yamlKeyToString(item.Key),
+				Valx: yamlItemToJsonItem(v),
 			}
 		default:
-			r[i] = jsonordered.MapItem{
-				Key: item.Key.(string),
-				Val: v,
+			r[ii] = jsonordered.MapItem{
+				Key:  yamlKeyToString(item.Key),
+				Valx: v,
 			}
 		}
 	}
@@ -278,7 +277,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Val),
+				Value: innerJsonToYaml(item.Valx),
 			}
 		}
 
@@ -288,7 +287,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Val),
+				Value: innerJsonToYaml(item.Valx),
 			}
 		}
 		return x
@@ -306,7 +305,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 	r := make([]yaml.MapItem, len(i))
 	for i, item := range i {
-		switch v := item.Val.(type) {
+		switch v := item.Valx.(type) {
 		case []jsonordered.MapItem, jsonordered.MapSlice, []interface{}:
 			r[i] = yaml.MapItem{
 				Key:   item.Key,
@@ -322,6 +321,17 @@ func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 	return r
 }
 
+func yamlKeyToString(key interface{}) string {
+	switch t := key.(type) {
+	case string:
+		return t
+	case int:
+		return strconv.Itoa(t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
 // fullCommentMetaToJson 处理在注释中的meta, 如果是js表达式, 则会运行它.
 // 如下:
 // $path
@@ -332,14 +342,14 @@ func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.MapItem, error) {
 	var r []yaml.MapItem
 	for _, item := range i {
-		s := item.Key.(string)
+		var key = yamlKeyToString(item.Key)
 
-		if strings.HasPrefix(s, "js-") {
+		if strings.HasPrefix(key, "js-") {
 			vs, ok := item.Value.(string)
 			if !ok {
-				panic(fmt.Sprintf("parse yaml err: value that key(%s) with 'js-' prefix must be string type, but %T", s, item.Value))
+				panic(fmt.Sprintf("parse yaml err: value that key(%s) with 'js-' prefix must be string type, but %T", key, item.Value))
 			}
-			item.Key = s[3:]
+			item.Key = key[3:]
 			item.Value = "js: " + vs
 		}
 
@@ -348,6 +358,18 @@ func (o *OpenApi) fullCommentMeta(i []yaml.MapItem, filename string) ([]yaml.Map
 			if strings.HasPrefix(v, "js: ") {
 				// 处理js 为yaml对象
 				jsCode := strings.Trim(v[3:], " ")
+				v, err := o.runJsExpress(jsCode, filename)
+				if err != nil {
+					return nil, fmt.Errorf("run js express fail: %w", err)
+				}
+
+				r = append(r, yaml.MapItem{
+					Key:   item.Key,
+					Value: v,
+				})
+			} else if strings.HasPrefix(v, "<") && strings.HasSuffix(v, ">") {
+				// 处理js 为yaml对象
+				jsCode := strings.Trim(v[1:len(v)-1], " ")
 				v, err := o.runJsExpress(jsCode, filename)
 				if err != nil {
 					return nil, fmt.Errorf("run js express fail: %w", err)
@@ -724,7 +746,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 					return nil, err
 				}
 
-				// 让json有序
+				// 让json有序的转为yaml
 				var outI jsonordered.MapSlice
 
 				err = json.Unmarshal(outBs, &outI)
