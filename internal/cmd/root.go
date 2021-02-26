@@ -13,7 +13,7 @@ const version = "0.0.1"
 var rootCmd = &cobra.Command{
 	Use:     "gopenapi",
 	Short:   "gopenapi",
-	Long:    `Gopenapi helps you write the openapi spec`,
+	Long:    `Gopenapi helps you to get rid of the cumbersome definition when writing openapi spec`,
 	Version: version,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		confFile := cmd.Flag("config").Value.String()
