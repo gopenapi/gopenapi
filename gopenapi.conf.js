@@ -350,6 +350,10 @@ function parseBody(r) {
     } else {
       schema = processSchema(r.schema.schema);
     }
+
+    if (schema.properties && r.ext) {
+      schema.properties = Object.assign(schema.properties, r.ext)
+    }
     return {
       description: r.desc || 'body',
       content: {
@@ -360,11 +364,19 @@ function parseBody(r) {
     }
   } else if (r['schema'] && r['schema']['x-schema']) {
     // for {schema: schema(1), desc: "desc"}
+    let schema = processSchema(r.schema);
+
+    // add extra properties, e.g.
+    //   {ext: {file: {type: string, format: binary}}}
+    if (schema.properties && r.ext) {
+      schema.properties = Object.assign(schema.properties, r.ext)
+    }
+
     return {
       description: r.desc || 'body',
       content: {
         [r.bodySchema || 'application/json']: {
-          schema: processSchema(r.schema),
+          schema: schema,
         }
       }
     }
