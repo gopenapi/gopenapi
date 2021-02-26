@@ -185,12 +185,12 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error
 	return ga.goAstToSchema(expr, noRef)
 }
 
-func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error) {
+func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schema, error) {
 	if !noRef {
 		// 使用ref逻辑
 
 		// 判断此表达式是否是在schemas中定义过了，如果定义过了则使用ref语法。
-		exprKey, err := expr.Key()
+		exprKey, err := goExpr.Key()
 		if err != nil {
 			err = fmt.Errorf("call Expr.Key err: %w", err)
 			return nil, err
@@ -204,7 +204,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 		}
 	}
 
-	k, err := expr.Key()
+	k, err := goExpr.Key()
 	if err != nil {
 		return nil, err
 	}
@@ -212,28 +212,29 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 	if k != "" {
 		// 可以递归两次，超出则报错
 		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
-			// TODO print error
-			return &ErrSchema{IsSchema: true, XError: fmt.Sprintf("recursive references on '%s'", k)}, nil
+			msg := fmt.Sprintf("recursive references on '%s'", k)
+			log.Warning(msg)
+			return &ErrSchema{IsSchema: true, XError: msg}, nil
 		}
 
 		o.parsedSchema[k] ++
 	}
 
-	switch s := expr.expr.(type) {
+	switch expr := goExpr.expr.(type) {
 	case *ast.ArrayType:
 		schema, err := o.goAstToSchema(&GoExprWithPath{
 			goparse: o.goparse,
 			openapi: o.openapi,
-			expr:    s.Elt,
-			doc:     expr.doc,
-			file:    expr.file,
+			expr:    expr.Elt,
+			doc:     goExpr.doc,
+			file:    goExpr.file,
 			name:    "",
 			key:     "",
 		}, false)
 		if err != nil {
 			return nil, err
 		}
-		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		gd, err := o.openapi.parseGoDoc(goExpr.doc.Text(), goExpr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -247,18 +248,18 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 	case *ast.StarExpr:
 		return o.goAstToSchema(&GoExprWithPath{
 			openapi: o.openapi,
-			goparse: expr.goparse,
-			expr:    s.X,
-			doc:     expr.doc,
-			file:    expr.file,
-			name:    expr.name,
-			key:     expr.key,
+			goparse: goExpr.goparse,
+			expr:    expr.X,
+			doc:     goExpr.doc,
+			file:    goExpr.file,
+			name:    goExpr.name,
+			key:     goExpr.key,
 		}, false)
 	case *ast.Ident:
 		// 标识
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
-		if is, t := IsBaseType(s.Name); is {
-			gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		if is, t := IsBaseType(expr.Name); is {
+			gd, err := o.openapi.parseGoDoc(goExpr.doc.Text(), goExpr.file)
 			if err != nil {
 				return nil, err
 			}
@@ -272,13 +273,13 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 				Example:     nil,
 			}, nil
 		}
-		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgOfFile(expr.file), s.Name)
+		def, exist, err := o.goparse.GetDef(o.goparse.GetPkgOfFile(goExpr.file), expr.Name)
 		// 获取当前包下的结构体
 		if err != nil {
 			return nil, err
 		}
 		if !exist {
-			msg := fmt.Sprintf("can't found Type: %s", s.Name)
+			msg := fmt.Sprintf("can't found Type: %s", expr.Name)
 			// TODO print error
 			log.Warning(msg)
 			return &ErrSchema{
@@ -286,24 +287,28 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 			}, nil
 		}
 
+		doc := goExpr.doc
+		if doc == nil {
+			doc = def.Doc
+		}
 		schema, err := o.goAstToSchema(&GoExprWithPath{
 			openapi: o.openapi,
 			goparse: o.goparse,
 			expr:    def.Type,
-			doc:     def.Doc,
+			doc:     doc,
 			file:    def.File,
 			name:    "",
 			key:     def.Key,
 		}, false)
-		//schema, err := o.goAstToSchema(def.Type, def.File)
 		if err != nil {
 			return nil, err
 		}
 
-		// 如果是基础类型, 则需要获取枚举值
+		// 如果是**子级是**基础类型, 则需要获取枚举值
+		// e.g. "type Status string"代码中 需要获取Status的枚举值.
 		if idt, ok := schema.(*IdentSchema); ok {
 			// 查找Enum
-			enum, err := o.goparse.GetEnum(o.goparse.GetPkgOfFile(expr.file), s.Name)
+			enum, err := o.goparse.GetEnum(o.goparse.GetPkgOfFile(goExpr.file), expr.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -317,9 +322,9 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 		return schema, err
 	case *ast.SelectorExpr:
 		// for model.T syntax
-		pkgName := s.X.(*ast.Ident).Name
+		pkgName := expr.X.(*ast.Ident).Name
 
-		pkgs, err := o.goparse.GetFileImportedPkgs(expr.file)
+		pkgs, err := o.goparse.GetFileImportedPkgs(goExpr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +333,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 			str, exist, err := PkgGetter{
 				goparse: o.goparse,
 				pkg:     pkg,
-			}.GetStruct(s.Sel.Name)
+			}.GetStruct(expr.Sel.Name)
 			if err != nil || !exist {
 				return &ErrSchema{}, err
 			}
@@ -356,12 +361,12 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 			AllOf:    nil,
 			IsSchema: true,
 		}
-		for _, f := range s.Fields.List {
+		for _, f := range expr.Fields.List {
 			fieldSchema, err := o.goAstToSchema(&GoExprWithPath{
 				openapi: o.openapi,
 				goparse: o.goparse,
 				expr:    f.Type,
-				file:    expr.file,
+				file:    goExpr.file,
 				name:    "",
 				//name:    name,
 				key: "",
@@ -391,19 +396,9 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 					allOf.Properties = append(allOf.Properties, t.Properties...)
 				}
 				continue
-				//switch t := fieldSchema.(type) {
-				//case *ObjectSchema:
-				//	props = append(props, t.Properties...)
-				//	continue
-				//case *RefSchema:
-				//	allOf.AllOf = append(allOf.AllOf, t)
-				//	continue
-				//default:
-				//	name = getExprName(f.Type)
-				//}
 			}
 
-			gd, err := o.openapi.parseGoDoc(f.Doc.Text(), expr.file)
+			gd, err := o.openapi.parseGoDoc(f.Doc.Text(), goExpr.file)
 			if err != nil {
 				return nil, err
 			}
@@ -417,7 +412,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 				},
 			})
 		}
-		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		gd, err := o.openapi.parseGoDoc(goExpr.doc.Text(), goExpr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -438,7 +433,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 
 		return schema, nil
 	case *ast.InterfaceType:
-		gd, err := o.openapi.parseGoDoc(expr.doc.Text(), expr.file)
+		gd, err := o.openapi.parseGoDoc(goExpr.doc.Text(), goExpr.file)
 		if err != nil {
 			return nil, err
 		}
@@ -457,7 +452,7 @@ func (o *GoAstToSchema) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema,
 			},
 		}, nil
 	default:
-		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", s, s))
+		panic(fmt.Sprintf("uncased goAstToSchema type: %T, %+v", expr, expr))
 	}
 }
 
@@ -678,14 +673,6 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			IsSchema: true,
 			Example:  s,
 		}, nil
-	//case nil:
-	//	// 如果传递的是nil, 则返回空对象
-	//  目前没有遇到这个情况, 还不知道哪里需要, 等需要再写这个分支
-	//	return &ObjectSchema{
-	//		Type:       "object",
-	//		Properties: nil,
-	//		IsSchema:   true,
-	//	}, nil
 	case *NotFoundGoExpr:
 		return &ErrSchema{
 			IsSchema: true,
@@ -699,5 +686,4 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 	default:
 		panic(fmt.Sprintf("uncased type2Schema type: %T, %+v", s, s))
 	}
-
 }

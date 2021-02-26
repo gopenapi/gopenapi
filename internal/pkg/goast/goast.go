@@ -154,6 +154,9 @@ func (g *GoParse) GetFuncOfStruct(pkgDir string, typName string) (enum map[strin
 	for _, d := range defs {
 		switch d.Type.(type) {
 		case *ast.FuncType:
+			if d.FuncRecv == nil {
+				break
+			}
 			if len(d.FuncRecv.List) != 0 {
 				expr := d.FuncRecv.List[0].Type
 

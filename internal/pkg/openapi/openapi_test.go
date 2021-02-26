@@ -50,7 +50,7 @@ func TestToSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := openAPi.runJsExpress("schema([model.Pet])",
+	v, err := openAPi.runJsExpress("model.Pet",
 		"github.com/gopenapi/gopenapi/internal/delivery/http/handler/pet.go")
 	if err != nil {
 		t.Fatal(err)
@@ -86,26 +86,6 @@ $path:
 	}
 	t.Logf("%s", bs)
 	//t.Logf("%+v", x)
-}
-
-func TestGetGoDocForFun(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus", false)
-	if err != nil {
-		return
-	}
-	if !exist {
-		t.Fatal("not exist")
-	}
-	bs, err := json.MarshalIndent(d, "  ", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%s", bs)
 }
 
 func TestGetGoDocForStruct(t *testing.T) {
