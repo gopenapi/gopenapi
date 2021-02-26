@@ -37,6 +37,7 @@ paths:
           type: array
           items:
             type: string
+            description: Status values that need to be considered for filter
             default: available
             enum:
             - available
@@ -147,6 +148,7 @@ paths:
                     $ref: '#/components/schemas/Tag'
                 status:
                   type: string
+                  description: PetStatus
                   default: available
                   enum:
                   - available
@@ -226,6 +228,7 @@ components:
             $ref: '#/components/schemas/Tag'
         status:
           type: string
+          description: PetStatus
           default: available
           enum:
           - available

@@ -2,16 +2,19 @@ package cmd
 
 import (
 	"errors"
-	"github.com/spf13/cobra"
 	"github.com/gopenapi/gopenapi/internal/pkg/openapi"
+	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
 )
 
+const version = "0.0.1"
+
 var rootCmd = &cobra.Command{
-	Use:   "gopenapi",
-	Short: "gopenapi",
-	Long:  `Gopenapi is progressive generator to generate openapi spec from golang source`,
+	Use:     "gopenapi",
+	Short:   "gopenapi",
+	Long:    `Gopenapi is progressive generator to generate openapi spec from golang source`,
+	Version: version,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		confFile := cmd.Flag("config").Value.String()
 		input := cmd.Flag("input").Value.String()
@@ -44,9 +47,9 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() error {
-	rootCmd.Flags().String("config", "gopenapi.conf.js", "Specify the configuration file to be used")
-	rootCmd.Flags().String("input", "", "Specify the source file in yaml format")
-	rootCmd.Flags().String("output", "", "Specify the output file path")
+	rootCmd.Flags().StringP("config", "c", "gopenapi.conf.js", "Specify the configuration file to be used")
+	rootCmd.Flags().StringP("input", "i", "", "Specify the source file in yaml format")
+	rootCmd.Flags().StringP("output", "o", "", "Specify the output file path")
 
 	return rootCmd.Execute()
 }

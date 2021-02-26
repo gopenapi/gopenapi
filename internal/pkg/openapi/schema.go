@@ -213,7 +213,6 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 		// 可以递归两次，超出则报错
 		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
 			msg := fmt.Sprintf("recursive references on '%s'", k)
-			log.Warning(msg)
 			return &ErrSchema{IsSchema: true, XError: msg}, nil
 		}
 
