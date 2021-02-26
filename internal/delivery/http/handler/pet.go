@@ -18,7 +18,6 @@ type PetHandler struct {
 //   response:
 //     200: {desc: '成功', schema: "schema([model.Pet])"}
 //     401: "#401"
-//
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 	var p model.FindPetByStatusParams
 	err := ctx.ShouldBind(&p)
