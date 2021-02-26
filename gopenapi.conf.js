@@ -353,17 +353,17 @@ function parseBody(r) {
     return {
       description: r.desc || 'body',
       content: {
-        'application/json': {
+        [r.bodySchema || 'application/json']: {
           schema: schema,
         }
       }
     }
-  } else if (r['schema'] && r['schema']) {
+  } else if (r['schema'] && r['schema']['x-schema']) {
     // for {schema: schema(1), desc: "desc"}
     return {
       description: r.desc || 'body',
       content: {
-        'application/json': {
+        [r.bodySchema || 'application/json']: {
           schema: processSchema(r.schema),
         }
       }
@@ -404,7 +404,7 @@ function processSchema(s, options) {
     let p = {}
     Object.keys(s.properties).forEach(function (key) {
       let v = s.properties[key]
-      var name = key
+      let name = key
 
       if (v.tag) {
         if (v.tag.json) {
@@ -416,20 +416,14 @@ function processSchema(s, options) {
         }
         delete (v['tag'])
       }
-      // console.log('v.schema 2', JSON.stringify(v.schema))
+
+      if (v.meta) {
+        if (v.meta.format) {
+          v.schema.format = v.meta.format
+        }
+      }
 
       p[name] = processSchema(v.schema)
-
-      // 处理 required
-      // if (s.modify) {
-      //   s.modify.forEach(({k, v}) => {
-      //     if (k === "required") {
-      //       if (v.indexOf(key) !== -1) {
-      //         p[name].required = true
-      //       }
-      //     }
-      //   })
-      // }
     })
 
     s.properties = p
