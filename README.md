@@ -238,7 +238,7 @@ Because of it, Gopenapi becomes flexible.
 ### How to write `gopenapi.conf.js`?
 The code in `gopenapi.conf.js` is very long, I do not recommend you to modify it, you can create a new issue if you have same requirements.
 
-If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again Will regenerate.
+If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again will regenerate it.
 
 The next example shows how to write `gopenapi.conf.js`:
 
@@ -362,7 +362,7 @@ The schema part is complicated. Fortunately, we don’t care about it, but focus
 For example, if we want to add a `operationId` field, we can write code like this:
 
 In go comments:
-```
+```diff
 // add 'tag' field
 // 
 // $:
