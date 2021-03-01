@@ -388,7 +388,7 @@ in go comments:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
 //   tags: [pet]
-//   operationId: FindPetByStatus
++++//   operationId: FindPetByStatus
 ```
 
 
@@ -397,9 +397,9 @@ in `gopenapi.conf.js`:
 export default {
   filter: function (key, value) {
         ...
-+++        if (value.meta.operationId) {
-+++          path.operationId = value.meta.operationId
-+++        }
++++     if (value.meta.operationId) {
++++       path.operationId = value.meta.operationId
++++     }
         ...
 ```
 
