@@ -404,7 +404,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 
 			props = append(props, jsonordered.MapItem{
 				Key: name,
-				Valx: ObjectProp{
+				Val: ObjectProp{
 					Schema: fieldSchema,
 					Meta:   gd.Meta,
 					Tag:    encodeTag(f.Tag),
@@ -629,7 +629,7 @@ func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 			}
 			props = append(props, jsonordered.MapItem{
 				Key: key,
-				Valx: ObjectProp{
+				Val: ObjectProp{
 					Schema: p,
 					Meta:   nil,
 					Tag:    nil,

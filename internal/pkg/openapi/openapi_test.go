@@ -89,12 +89,12 @@ $path:
 }
 
 func TestGetGoDocForStruct(t *testing.T) {
-	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.js")
+	openAPi, err := NewOpenApi("../../../go.mod", "../../../gopenapi.conf.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/model.Pet", false)
+	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/delivery/http/handler.Boo", false)
 	if err != nil {
 		return
 	}

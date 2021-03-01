@@ -32,92 +32,7 @@ type OpenApi struct {
 	schemas map[string]schemaSave
 }
 
-var defJsConfig = `
-
-// {type, properties}
-function pSchema(s){
-  if (s.properties){
-    var p ={}
-	  Object.keys(s.properties).forEach(function (key) {  
-		var v = s.properties[key]
-		var name = key
-	
-		if (v.tag) {
-			if (v.tag.json){
-				name = v.tag.json
-			}
-			delete(v['tag'])
-		}
-		
-		p[name] =  pSchema(v)
-	  })
-	  
-	  s.properties = p
-  }
-  
-  if (s.items){
-    s.items = pSchema(s.items)
-  }
-
-  return s
-}
-
-  var config = {
-      filter: function(key, value){
-        if (key==='x-$path'){
-          var responses = {}
-          Object.keys(value.meta.resp).forEach(function (k){
-            var v = value.meta.resp[k]
-			var rsp 
-			if (typeof v == 'string'){
-				rsp = {$ref: v}
-			}else{
-				rsp = {
-				  description: v.desc || 'success',
-				  content: {
-					'application/json': {
-					  schema: pSchema(v.schema),
-					}
-				  }
-				} 
-			}
-			
-            responses[k] = rsp
-          })
-          return {
-            parameters: value.meta.params.map(function (i){
-              var x = i
-              if (x.tag) {
-                if (x.tag.form){
-                  x.name = x.tag.form
-                }
-                delete(x['tag'])
-              }
-              if (x['meta']) {
-                x.in = x['meta'].in;
-				x.required = x['meta'].required
-              }
-              if (!x.in){
-			    x.in = 'query'	
-			  }
-
-              delete(x['_from'])
-              delete(x['doc'])
-              delete(x['meta'])
-              return x
-            }),
-            responses: responses
-          }
-        }
-        if (key==='x-$schema'){
-          return pSchema(value.schema)
-        }
-
-        return value
-      }
-    }
-
-`
+var defJsConfig = ``
 
 func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	goSrc, err := gosrc.NewGoSrcFromModFile(gomodFile)
@@ -126,18 +41,15 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	}
 	p := goast.NewGoParse(goSrc)
 
-	jsConfig := defJsConfig
-	if jsFile != "" {
-		bs, err := ioutil.ReadFile(jsFile)
-		if err != nil {
-			return nil, fmt.Errorf("load jsConfig err: %w", err)
-		}
-		jsConfig = string(bs)
+	bs, err := ioutil.ReadFile(jsFile)
+	if err != nil {
+		return nil, fmt.Errorf("load js config err: %w", err)
 	}
+	jsConfig := string(bs)
 
 	newCode, _, err := js.Transform(jsConfig, jsFile)
 	if err != nil {
-		return nil, fmt.Errorf("transform jsConfig to ES5 err: %w", err)
+		return nil, fmt.Errorf("transform js config to ES5 err: %w", err)
 	}
 
 	return &OpenApi{
@@ -276,13 +188,13 @@ func yamlItemToJsonItem(i []yaml.MapItem) jsonordered.MapSlice {
 		switch v := item.Value.(type) {
 		case []yaml.MapItem:
 			r[ii] = jsonordered.MapItem{
-				Key:  yamlKeyToString(item.Key),
-				Valx: yamlItemToJsonItem(v),
+				Key: yamlKeyToString(item.Key),
+				Val: yamlItemToJsonItem(v),
 			}
 		default:
 			r[ii] = jsonordered.MapItem{
-				Key:  yamlKeyToString(item.Key),
-				Valx: v,
+				Key: yamlKeyToString(item.Key),
+				Val: v,
 			}
 		}
 	}
@@ -296,7 +208,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Valx),
+				Value: innerJsonToYaml(item.Val),
 			}
 		}
 
@@ -306,7 +218,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Valx),
+				Value: innerJsonToYaml(item.Val),
 			}
 		}
 		return x
@@ -324,7 +236,7 @@ func innerJsonToYaml(i interface{}) interface{} {
 func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
 	r := make([]yaml.MapItem, len(i))
 	for i, item := range i {
-		switch v := item.Valx.(type) {
+		switch v := item.Val.(type) {
 		case []jsonordered.MapItem, jsonordered.MapSlice, []interface{}:
 			r[i] = yaml.MapItem{
 				Key:   item.Key,
@@ -733,7 +645,7 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 	if err != nil {
 		return
 	}
-	_, err = vm.RunScript("jsConfig", o.jsConfig)
+	_, err = vm.RunScript("gopenapi.conf.js", o.jsConfig)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)
 		return
@@ -742,13 +654,12 @@ func (o *OpenApi) runConfigJs(key string, in []byte, keyRouter []string) (jsBs [
 	krBs, _ := json.Marshal(keyRouter)
 	code := fmt.Sprintf(`var r = exports.default.filter("%s", %s, %s); JSON.stringify(r)`, key, in, krBs)
 	//log.Infof("%s", code)
-	v, err := vm.RunScript("js", code)
+	v, err := vm.RunScript("export", code)
 	if err != nil {
 		err = fmt.Errorf("RunScript err: %w", err)
 		return
 	}
 
-	//log.Infof("%T %v", v.Export(),v.Export())
 	exp := v.Export()
 	if exp == nil {
 		return []byte(`{}`), nil
