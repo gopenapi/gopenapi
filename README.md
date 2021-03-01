@@ -133,12 +133,12 @@ e.g.
 
 ### Step 2: Write 'meta-comments' in your go source code
 
-```go
+```diff
 // FindPetByStatus Finds Pets by status
 //
-// $:
-//   params: model.FindPetByStatusParams
-//   response: schema([model.Pet])
++++// $:
++++//   params: model.FindPetByStatusParams
++++//   response: schema([model.Pet])
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 ...
 }
