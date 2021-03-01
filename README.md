@@ -24,7 +24,17 @@ native yaml syntax
 ## Shortcoming
 
 - Currently, this project is still being tested, Performance is not stable enough, code is not elegant enough.
-- Since it is based on Golang Ast, it currently only supports the Golang.
+- Since it is based on Golang Ast, it currently only **supports the Golang**.
+
+## Who needs Gopenapi?
+
+If you meet the following situation, maybe you need it
+
+- Not using openapi
+- Use "hand" to write openapi
+- Use other tools to write openapi
+
+Don't recommend you who are using go-swagger to use it, unless you want to write `openapi.yaml` again.
 
 ## Get start
 
@@ -136,9 +146,9 @@ e.g.
 ```diff
 // FindPetByStatus Finds Pets by status
 //
-+++// $:
-+++//   params: model.FindPetByStatusParams
-+++//   response: schema([model.Pet])
++++ // $:
++++ //   params: model.FindPetByStatusParams
++++ //   response: schema([model.Pet])
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 ...
 }
@@ -236,13 +246,17 @@ You can write any data in 'meta-comments' and then process it in `gopenapi.conf.
 Because of it, Gopenapi becomes flexible.
 
 ### How to write `gopenapi.conf.js`?
-The code in `gopenapi.conf.js` is very long, I do not recommend you to modify it, you can create a new issue if you have same requirements.
 
-If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again will regenerate it.
+The code in `gopenapi.conf.js` is very long, I do not recommend you to modify it, you can create a new issue if you have
+same requirements.
+
+If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again will regenerate
+it.
 
 The next example shows how to write `gopenapi.conf.js`:
 
 Comments in go:
+
 ```
 // add 'tag' field
 // 
@@ -256,112 +270,113 @@ It will be processed into the following data, and you can use it in `gopenapi.co
 
 ```json
 {
-    "doc": "add 'tag' field",
-    "summary": "add 'tag' field",
-    "description": "",
-    "meta": {
-        "params": {
-            "schema": {
-                "meta": {
-                    "in": "query"
-                },
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "Status": {
-                            "schema": {
-                                "type": "array",
-                                "description": "Status values that need to be considered for filter",
-                                "items": {
-                                    "type": "string",
-                                    "description": "Status values that need to be considered for filter",
-                                    "default": "available",
-                                    "enum": [
-                                        "available",
-                                        "pending",
-                                        "sold"
-                                    ],
-                                    "x-schema": true
-                                },
-                                "x-schema": true
-                            },
-                            "meta": {
-                                "required": true
-                            },
-                            "tag": {
-                                "form": "status"
-                            }
-                        }
-                    },
-                    "x-schema": true
-                },
-                "x-gostruct": true
-            },
-            "required": [
-                "status"
-            ]
+  "doc": "add 'tag' field",
+  "summary": "add 'tag' field",
+  "description": "",
+  "meta": {
+    "params": {
+      "schema": {
+        "meta": {
+          "in": "query"
         },
-        "response": {
-            "200": {
-                "schema": {
-                    "doc": "Pet is pet model",
-                    "summary": "Pet is pet model",
-                    "description": "",
-                    "meta": {
-                        "testMeta": "a"
-                    },
-                    "schema": {
-                        "type": "object",
-                        "description": "Pet is pet model",
-                        "properties": {
-                            "Id": {
-                                "schema": {
-                                    "type": "integer",
-                                    "description": "Id is Pet ID",
-                                    "x-schema": true
-                                },
-                                "tag": {
-                                    "json": "id"
-                                }
-                            },
-                            "Status": {
-                                "schema": {
-                                    "type": "string",
-                                    "description": "PetStatus",
-                                    "default": "available",
-                                    "enum": [
-                                        "available",
-                                        "pending",
-                                        "sold"
-                                    ],
-                                    "x-schema": true
-                                },
-                                "tag": {
-                                    "json": "status"
-                                }
-                            }
-                        },
-                        "x-schema": true
-                    },
-                    "x-gostruct": true
+        "schema": {
+          "type": "object",
+          "properties": {
+            "Status": {
+              "schema": {
+                "type": "array",
+                "description": "Status values that need to be considered for filter",
+                "items": {
+                  "type": "string",
+                  "description": "Status values that need to be considered for filter",
+                  "default": "available",
+                  "enum": [
+                    "available",
+                    "pending",
+                    "sold"
+                  ],
+                  "x-schema": true
                 },
-                "desc": "success!"
-            },
-            "401": "#401"
+                "x-schema": true
+              },
+              "meta": {
+                "required": true
+              },
+              "tag": {
+                "form": "status"
+              }
+            }
+          },
+          "x-schema": true
         },
-        "tags": [
-            "pet"
-        ]
+        "x-gostruct": true
+      },
+      "required": [
+        "status"
+      ]
     },
-    "x-gostruct": true
+    "response": {
+      "200": {
+        "schema": {
+          "doc": "Pet is pet model",
+          "summary": "Pet is pet model",
+          "description": "",
+          "meta": {
+            "testMeta": "a"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Pet is pet model",
+            "properties": {
+              "Id": {
+                "schema": {
+                  "type": "integer",
+                  "description": "Id is Pet ID",
+                  "x-schema": true
+                },
+                "tag": {
+                  "json": "id"
+                }
+              },
+              "Status": {
+                "schema": {
+                  "type": "string",
+                  "description": "PetStatus",
+                  "default": "available",
+                  "enum": [
+                    "available",
+                    "pending",
+                    "sold"
+                  ],
+                  "x-schema": true
+                },
+                "tag": {
+                  "json": "status"
+                }
+              }
+            },
+            "x-schema": true
+          },
+          "x-gostruct": true
+        },
+        "desc": "success!"
+      },
+      "401": "#401"
+    },
+    "tags": [
+      "pet"
+    ]
+  },
+  "x-gostruct": true
 }
 ```
 
-The schema part is complicated. Fortunately, we don’t care about it, but focus on other fields. 
+The schema part is complicated. Fortunately, we don’t care about it, but focus on other fields.
 
 For example, if we want to add a `operationId` field, we can write code like this:
 
 In go comments:
+
 ```diff
 // add 'tag' field
 // 
@@ -369,11 +384,11 @@ In go comments:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
 //   tags: [pet]
-+++//   operationId: FindPetByStatus
++++ //   operationId: FindPetByStatus
 ```
 
-
 In `gopenapi.conf.js`:
+
 ```diff
 export default {
   filter: function (key, value) {
@@ -408,5 +423,6 @@ Strings that meet the following rules will be executed as JavaScript:
 - string like "model.X" and can find the definition in go source code.
 
 ## Next goal
+
 - Optimize code and performance
 - More documentation if you need it
