@@ -190,9 +190,11 @@ gopenapi -h
 
 ## Advanced
 
+So far you already know how to use Gopenapi, if you want more customization, please read on.
+
 ### What is `gopenapi.conf.js`?
 
-Gopenapi will generate a gopenapi.conf.js file in the root directory of the project after running if this file does not
+Gopenapi will generate `gopenapi.conf.js` file in the root directory of the project after running if this file does not
 exist.
 
 This script is designed to allow you to customize the convenient syntax according to your preferences.
@@ -205,25 +207,22 @@ The following syntax are supported by current script:
 // $:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: model.Pet
-```
 
-```
+
 // add 'description' field
 // 
 // $:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {schema: model.Pet, desc: 'success!'}
-```
 
-```
+
 // add more responses
 // 
 // $:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
-```
 
-```
+
 // add 'tag' field
 // 
 // $:
@@ -232,11 +231,16 @@ The following syntax are supported by current script:
 //   tags: [pet]
 ```
 
-You can write any data in 'meta-comments' and then process it into openapi data in `gopenapi.conf.js`.
+You can write any data in 'meta-comments' and then process it in `gopenapi.conf.js`.
 
 Because of it, Gopenapi becomes flexible.
 
 ### How to write `gopenapi.conf.js`?
+The code in `gopenapi.conf.js` is very long, I do not recommend you to modify it, you can create a new issue if you have same requirements.
+
+If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again Will regenerate.
+
+The next example shows how to write `gopenapi.conf.js`:
 
 Comments in go:
 ```
@@ -250,7 +254,7 @@ Comments in go:
 
 It will be processed into the following data, and you can use it in `gopenapi.conf.js`:
 
-```
+```json
 {
     "doc": "add 'tag' field",
     "summary": "add 'tag' field",
@@ -258,9 +262,6 @@ It will be processed into the following data, and you can use it in `gopenapi.co
     "meta": {
         "params": {
             "schema": {
-                "doc": "",
-                "summary": "",
-                "description": "",
                 "meta": {
                     "in": "query"
                 },
@@ -323,27 +324,6 @@ It will be processed into the following data, and you can use it in `gopenapi.co
                                     "json": "id"
                                 }
                             },
-                            "Category": {
-                                "schema": {
-                                    "type": "object",
-                                    "description": "Category Is pet category",
-                                    "properties": {msg: 'emit'},
-                                    "x-schema": true
-                                },
-                                "tag": {
-                                    "json": "category"
-                                }
-                            },
-                            "Name": {
-                                "schema": {
-                                    "type": "string",
-                                    "description": "Name is Pet name",
-                                    "x-schema": true
-                                },
-                                "tag": {
-                                    "json": "name"
-                                }
-                            },
                             "Status": {
                                 "schema": {
                                     "type": "string",
@@ -378,9 +358,10 @@ It will be processed into the following data, and you can use it in `gopenapi.co
 ```
 
 The schema part is complicated. Fortunately, we don’t care about it, but focus on other fields. 
+
 For example, if we want to add a `operationId` field, we can write code like this:
 
-in go comments:
+In go comments:
 ```
 // add 'tag' field
 // 
@@ -392,11 +373,15 @@ in go comments:
 ```
 
 
-in `gopenapi.conf.js`:
+In `gopenapi.conf.js`:
 ```diff
 export default {
   filter: function (key, value) {
         ...
+        let path = {
+          summary: value.summary,
+          description: value.description,
+        }
 +++     if (value.meta.operationId) {
 +++       path.operationId = value.meta.operationId
 +++     }
