@@ -146,9 +146,9 @@ e.g.
 ```diff
 // FindPetByStatus Finds Pets by status
 //
-+++ // $:
-+++ //   params: model.FindPetByStatusParams
-+++ //   response: schema([model.Pet])
++ // $:
++ //   params: model.FindPetByStatusParams
++ //   response: schema([model.Pet])
 func (h *PetHandler) FindPetByStatus(ctx *gin.Context) {
 ...
 }
@@ -384,7 +384,7 @@ In go comments:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
 //   tags: [pet]
-+++ //   operationId: FindPetByStatus
++ //   operationId: FindPetByStatus
 ```
 
 In `gopenapi.conf.js`:
@@ -397,9 +397,9 @@ export default {
           summary: value.summary,
           description: value.description,
         }
-+++     if (value.meta.operationId) {
-+++       path.operationId = value.meta.operationId
-+++     }
++     if (value.meta.operationId) {
++       path.operationId = value.meta.operationId
++     }
         ...
 ```
 
