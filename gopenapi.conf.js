@@ -280,8 +280,6 @@ function parseParams(r) {
             }
           }
 
-          // console.log('v 2', JSON.stringify(v))
-
           let description = v.schema.description;
           delete v.schema.description
           let item = {
@@ -400,9 +398,6 @@ function processSchema(s, options) {
     if (s.$ref) {
       return {$ref: s.$ref}
     }
-  }
-  if (s.modify) {
-    console.log('modify: ', JSON.stringify(s))
   }
 
   if (s.allOf) {
