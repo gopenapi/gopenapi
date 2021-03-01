@@ -24,7 +24,7 @@ native yaml syntax
 ## Shortcoming
 
 - Currently, this project is still being tested, Performance is not stable enough, code is not elegant enough.
-- Since it is based on Golang Ast, it currently only **supports the Golang**.
+- Since it is based on Golang Ast, it currently **only supports Golang**, and need to enable 'go module'.
 
 ## Who needs Gopenapi?
 
@@ -426,3 +426,4 @@ Strings that meet the following rules will be executed as JavaScript:
 
 - Optimize code and performance
 - More documentation if you need it
+- Organize the code in `gopenapi.conf.js`
