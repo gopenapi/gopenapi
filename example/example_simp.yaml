@@ -21,7 +21,7 @@ servers:
   - url: https://petstore.swagger.io/v2
   - url: http://petstore.swagger.io/v2
 
-tags:
+x-$tags:
   - name: Regular
     description: Test all features
   - name: Edge

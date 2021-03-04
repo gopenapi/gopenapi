@@ -242,7 +242,14 @@ components:
         children:
           type: array
           items:
-            $ref: '#/components/schemas/TestRecursion'
+            type: object
+            properties:
+              id:
+                type: integer
+              children:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TestRecursion'
   responses:
     200:
       description: Success

@@ -105,10 +105,12 @@ type ErrSchema struct {
 	Error string `json:"error,omitempty"`
 	// 用于弱提示，此字段在editor中不会报错。
 	XError string `json:"x-error,omitempty"`
+	Ref    string `json:"$ref,omitempty"`
 }
 
 func (n ErrSchema) setRef(ref string) Schema {
-	panic("implement me")
+	n.Ref = ref
+	return n
 }
 
 func (n ErrSchema) _schema() {
@@ -178,6 +180,7 @@ func (o *OpenApi) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error
 	ga := GoAstToSchema{
 		goparse:      o.goparse,
 		schemas:      o.schemas,
+		schemasDef:   o.schemasDef,
 		parsedSchema: map[string]int{},
 		openapi:      o,
 	}
@@ -197,10 +200,6 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 		}
 		if ref, ok := o.schemas[exprKey]; ok {
 			return ref.schema.setRef("#/" + ref.yamlKey), nil
-			//return &RefSchema{
-			//	Ref:      "#/" + ref.yamlKey,
-			//	IsSchema: true,
-			//}, nil
 		}
 	}
 
@@ -213,7 +212,14 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 		// 可以递归两次，超出则报错
 		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
 			msg := fmt.Sprintf("recursive references on '%s'", k)
-			return &ErrSchema{IsSchema: true, XError: msg}, nil
+			log.Infof("schemasDef: %+v %v", o.schemasDef, k)
+			var s Schema
+			s = &ErrSchema{IsSchema: true, XError: msg}
+			if yamlKey, ok := o.schemasDef[k]; ok {
+				s = s.setRef("#/" + yamlKey)
+			}
+
+			return s, nil
 		}
 
 		o.parsedSchema[k] ++
@@ -572,6 +578,8 @@ type GoAstToSchema struct {
 	// 已经定义了的schema
 	// key(def key in go) => yaml key(e.g. components/schema/Pet)
 	schemas map[string]schemaSave
+	// go def => yaml key route
+	schemasDef map[string]string
 
 	// 已经解析过的schema, 用于判断无限递归
 	parsedSchema map[string]int

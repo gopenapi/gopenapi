@@ -1,7 +1,10 @@
+// import Go from "go";
+
 export default {
   filter: function (key, value) {
     switch (key) {
       case 'x-$path': {
+        value = Go(value)
         let responses = parseResponses(value.meta.response)
         let params = parseParams(value.meta.params)
         let body = parseBody(value.meta.body)
@@ -42,7 +45,15 @@ export default {
         return path
       }
       case 'x-$schema': {
-        return processSchema(value.schema)
+        value = Go(value)
+
+        // console.log('x', JSON.stringify(value.schema))
+        return processSchema(value.schema, {omitRef: true})
+      }
+      case 'x-$tags': {
+        return {
+          tags: value,
+        }
       }
     }
     return value
