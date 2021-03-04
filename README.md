@@ -194,6 +194,17 @@ You can type 'gopenapi -h' to get more helps.
 
 ```bash
 gopenapi -h
+
+Usage:
+  gopenapi [flags]
+
+Flags:
+  -c, --config string   specify the configuration file to be used (default "gopenapi.conf.js")
+  -h, --help            help for gopenapi
+  -i, --input string    specify the source file in yaml format
+  -o, --output string   specify the output file path
+  -v, --version         version for gopenapi
+
 ```
 
 > Tip: You can review the generated file on http://editor.swagger.io/
