@@ -1,10 +1,8 @@
 package openapi
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
@@ -30,11 +28,9 @@ type OpenApi struct {
 
 	// schemas 存放需要refs的schemas
 	// key is the def key in go (e.g. components/schema/Pet)
-	schemas    map[string]schemaSave
+	schemas    map[string]Schema
 	schemasDef map[string]string
 }
-
-var defJsConfig = ``
 
 func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	goSrc, err := gosrc.NewGoSrcFromModFile(gomodFile)
@@ -57,7 +53,7 @@ func NewOpenApi(gomodFile string, jsFile string) (*OpenApi, error) {
 	return &OpenApi{
 		goparse:    p,
 		jsConfig:   newCode,
-		schemas:    map[string]schemaSave{},
+		schemas:    map[string]Schema{},
 		schemasDef: map[string]string{},
 	}, nil
 }
@@ -237,14 +233,15 @@ func innerYamlToJson(i interface{}) interface{} {
 	return i
 }
 
-func innerJsonToYaml(i interface{}) interface{} {
+// 将orderJson转为orderYaml
+func deepJsonToYaml(i interface{}) interface{} {
 	switch i := i.(type) {
 	case []jsonordered.MapItem:
 		x := make([]yaml.MapItem, len(i))
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Val),
+				Value: deepJsonToYaml(item.Val),
 			}
 		}
 
@@ -254,44 +251,25 @@ func innerJsonToYaml(i interface{}) interface{} {
 		for index, item := range i {
 			x[index] = yaml.MapItem{
 				Key:   item.Key,
-				Value: innerJsonToYaml(item.Val),
+				Value: deepJsonToYaml(item.Val),
 			}
 		}
 		return x
 	case []interface{}:
 		x := make([]interface{}, len(i))
 		for index, item := range i {
-			x[index] = innerJsonToYaml(item)
+			x[index] = deepJsonToYaml(item)
 		}
 		return x
 	case []jsonordered.MapSlice:
 		x := make([]interface{}, len(i))
 		for index, item := range i {
-			x[index] = innerJsonToYaml(item)
+			x[index] = deepJsonToYaml(item)
 		}
 		return x
 	}
 
 	return i
-}
-
-func jsonItemToYamlItem(i []jsonordered.MapItem) []yaml.MapItem {
-	r := make([]yaml.MapItem, len(i))
-	for i, item := range i {
-		switch v := item.Val.(type) {
-		case []jsonordered.MapItem, jsonordered.MapSlice, []interface{}:
-			r[i] = yaml.MapItem{
-				Key:   item.Key,
-				Value: innerJsonToYaml(v),
-			}
-		default:
-			r[i] = yaml.MapItem{
-				Key:   item.Key,
-				Value: v,
-			}
-		}
-	}
-	return r
 }
 
 func yamlKeyToString(key interface{}) string {
@@ -651,19 +629,19 @@ func (o *OpenApi) walkSchemas(kv []yaml.MapItem) (err error) {
 
 		o.schemasDef[pat] = yamlKey
 
-		g, exist, err := o.getGoStruct(pat, false)
-		if err != nil {
-			return
-		}
-		if !exist {
-			log.Warningf("can't found '%s' definition on yaml: '%s'", pat, strings.Join(key, "."))
-			return
-		}
-
-		o.schemas[pat] = schemaSave{
-			schema:  g.Schema,
-			yamlKey: yamlKey,
-		}
+		//g, exist, err := o.getGoStruct(pat, false)
+		//if err != nil {
+		//	return
+		//}
+		//if !exist {
+		//	log.Warningf("can't found '%s' definition on yaml: '%s'", pat, strings.Join(key, "."))
+		//	return
+		//}
+		//
+		//o.schemas[pat] = schemaSave{
+		//	schema:  g.Schema,
+		//	yamlKey: yamlKey,
+		//}
 	})
 
 	//log.Infof("%+v", o.schemas)
@@ -685,8 +663,8 @@ func (o *OpenApi) Go(vm *goja.Runtime, key string, value string, yamlKeyRouter [
 		return vm.ToValue(value), nil
 	}
 
-	//noRef := isSchemasComponentsKey(yamlKeyRouter)
-	g, exist, err2 := o.getGoStruct(value, false)
+	noRef := isSchemasComponentsKey(yamlKeyRouter)
+	g, exist, err2 := o.getGoStruct(value, noRef)
 	if err2 != nil {
 		err2 = fmt.Errorf("full yaml '%s' fail\n  %w", strings.Join(yamlKeyRouter, "."), err2)
 		return nil, err2
@@ -784,7 +762,7 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 				return nil, err2
 			}
 
-			orderJson, err2 := UnmarshalToOrderJson(outBs)
+			orderJson, err2 := jsonordered.UnmarshalToOrderJson(outBs)
 			if err2 != nil {
 				return nil, err2
 			}
@@ -792,12 +770,12 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 			switch orderJson.(type) {
 			case jsonordered.MapSlice:
 				// 如果是对象, 则需要展开
-				out = append(out, innerJsonToYaml(orderJson).([]yaml.MapItem)...)
+				out = append(out, deepJsonToYaml(orderJson).([]yaml.MapItem)...)
 			default:
 				// 其他类型 (字符串. 数组等) 不需要展开, 保留原有的key
 				out = append(out, yaml.MapItem{
 					Key:   item.Key,
-					Value: innerJsonToYaml(orderJson),
+					Value: deepJsonToYaml(orderJson),
 				})
 			}
 
@@ -825,42 +803,4 @@ func (o *OpenApi) completeYaml(in []yaml.MapItem, keyRouter []string) (out []yam
 
 	out = mergeYamlMap(out)
 	return
-}
-
-func UnmarshalToOrderJson(bs []byte) (interface{}, error) {
-	bs = bytes.TrimSpace(bs)
-
-	if len(bs) == 0 {
-		return nil, nil
-	}
-	switch bs[0] {
-	case '[':
-		var i []jsonordered.MapSlice
-		err := json.Unmarshal(bs, &i)
-		if err != nil {
-			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
-		}
-		return i, nil
-	case '{':
-		var i jsonordered.MapSlice
-		err := json.Unmarshal(bs, &i)
-		if err != nil {
-			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
-		}
-		return i, nil
-	default:
-		var i interface{}
-		err := json.Unmarshal(bs, &i)
-		if err != nil {
-			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
-		}
-		return i, nil
-	}
-}
-
-func jsonIsArray(bs []byte) (isArray bool) {
-	_, err := jsonparser.ArrayEach(bs, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-	})
-
-	return err == nil
 }

@@ -46,8 +46,6 @@ export default {
       }
       case 'x-$schema': {
         value = Go(value)
-
-        // console.log('x', JSON.stringify(value.schema))
         return processSchema(value.schema, {omitRef: true})
       }
       case 'x-$tags': {

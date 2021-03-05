@@ -1,7 +1,9 @@
 package jsonordered
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/buger/jsonparser"
 )
 
@@ -106,4 +108,36 @@ func (j MapSlice) Get(key string) (v interface{}, exist bool) {
 	}
 
 	return nil, false
+}
+
+// 解析json字符串为 []MapSlice or MapSlice, 分别对应数组和对象.
+func UnmarshalToOrderJson(bs []byte) (interface{}, error) {
+	bs = bytes.TrimSpace(bs)
+
+	if len(bs) == 0 {
+		return nil, nil
+	}
+	switch bs[0] {
+	case '[':
+		var i []MapSlice
+		err := json.Unmarshal(bs, &i)
+		if err != nil {
+			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
+		}
+		return i, nil
+	case '{':
+		var i MapSlice
+		err := json.Unmarshal(bs, &i)
+		if err != nil {
+			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
+		}
+		return i, nil
+	default:
+		var i interface{}
+		err := json.Unmarshal(bs, &i)
+		if err != nil {
+			return nil, fmt.Errorf("json.Unmarshal err: %w", err)
+		}
+		return i, nil
+	}
 }

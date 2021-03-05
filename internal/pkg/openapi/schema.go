@@ -176,53 +176,58 @@ func (expr *GoExprWithPath) Key() (string, error) {
 //
 //   expr参数是goAst
 //   exprInFile 是这个expr在哪一个文件中(必须是相对路径, 如github.com/gopenapi/gopenapi/internal/model/pet.go), 这是为了识别到这个文件引入了哪些包.
-func (o *OpenApi) goAstToSchema(expr *GoExprWithPath, noRef bool) (Schema, error) {
+func (o *OpenApi) goAstToSchema(expr *GoExprWithPath) (Schema, error) {
 	ga := GoAstToSchema{
-		goparse:      o.goparse,
-		schemas:      o.schemas,
-		schemasDef:   o.schemasDef,
-		parsedSchema: map[string]int{},
-		openapi:      o,
+		goparse:           o.goparse,
+		parsedSchemas:     o.schemas,
+		schemasDef:        o.schemasDef,
+		parsedSchemaCount: map[string]int{},
+		openapi:           o,
 	}
 
-	return ga.goAstToSchema(expr, noRef)
+	return ga.goAstToSchema(expr)
 }
 
-func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schema, error) {
-	if !noRef {
-		// 使用ref逻辑
-
-		// 判断此表达式是否是在schemas中定义过了，如果定义过了则使用ref语法。
-		exprKey, err := goExpr.Key()
-		if err != nil {
-			err = fmt.Errorf("call Expr.Key err: %w", err)
-			return nil, err
-		}
-		if ref, ok := o.schemas[exprKey]; ok {
-			return ref.schema.setRef("#/" + ref.yamlKey), nil
-		}
-	}
-
+func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath) (rs Schema, err error) {
 	k, err := goExpr.Key()
 	if err != nil {
 		return nil, err
 	}
 
 	if k != "" {
+
+		// 如果已经解析过一次了, 并且定义了此schema 那么下一次就使用ref.
+		// 由于始终是 定义schema的时候首先被解析, 所以即解析schema定义时(因为是始终第一次)不会有ref.
+		// 不过这里逻辑有点绕, 需要优化
+
+		// 只要在schema定义过, 则都会生成ref, 在js端的时候可以选择是否忽略ref
+		defer func() {
+			if yamlKey, ok := o.schemasDef[k]; ok {
+				rs = rs.setRef("#/" + yamlKey)
+			}
+		}()
+
+		defer func() {
+			if err != nil {
+				// 缓存解析好的schema
+				o.parsedSchemas[k] = rs
+			}
+		}()
+
+		if ref, ok := o.parsedSchemas[k]; ok {
+			return ref, nil
+		}
+
 		// 可以递归两次，超出则报错
-		if count, ok := o.parsedSchema[k]; ok && count >= 2 {
+		if count, ok := o.parsedSchemaCount[k]; ok && count >= 2 {
 			msg := fmt.Sprintf("recursive references on '%s'", k)
-			log.Infof("schemasDef: %+v %v", o.schemasDef, k)
 			var s Schema
 			s = &ErrSchema{IsSchema: true, XError: msg}
-			if yamlKey, ok := o.schemasDef[k]; ok {
-				s = s.setRef("#/" + yamlKey)
-			}
-
 			return s, nil
 		}
 
-		o.parsedSchema[k] ++
+		o.parsedSchemaCount[k] ++
+
 	}
 
 	switch expr := goExpr.expr.(type) {
@@ -235,7 +240,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 			file:    goExpr.file,
 			name:    "",
 			key:     "",
-		}, false)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -259,7 +264,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 			file:    goExpr.file,
 			name:    goExpr.name,
 			key:     goExpr.key,
-		}, false)
+		})
 	case *ast.Ident:
 		// 标识
 		// 如果是基础类型, 则返回, 否则还需要继续递归.
@@ -304,7 +309,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 			file:    def.File,
 			name:    "",
 			key:     def.Key,
-		}, false)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -351,7 +356,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 				file:    str.File,
 				name:    str.Name,
 				key:     str.Key,
-			}, false)
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -376,7 +381,7 @@ func (o *GoAstToSchema) goAstToSchema(goExpr *GoExprWithPath, noRef bool) (Schem
 				//name:    name,
 				key: "",
 				doc: f.Doc,
-			}, false)
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -567,22 +572,19 @@ func (g *GoExprWithPath) GetMember(k string) (interface{}, error) {
 	}, nil
 }
 
-type schemaSave struct {
-	yamlKey string
-	schema  Schema
-}
-
 type GoAstToSchema struct {
 	goparse *goast.GoParse
 
-	// 已经定义了的schema
-	// key(def key in go) => yaml key(e.g. components/schema/Pet)
-	schemas map[string]schemaSave
-	// go def => yaml key route
+	// 出现在schema定义的schema, 用于在其他地方不再重复解析.
+	// go def path => schema
+	parsedSchemas map[string]Schema
+	// schema 定义的路径, 在解析schema定义本身时有用.
+	// go def path => yaml key route
 	schemasDef map[string]string
 
-	// 已经解析过的schema, 用于判断无限递归
-	parsedSchema map[string]int
+	// 已经解析过的schema次数, 防止无限递归
+	// 和 parsedSchemas 不同的是, parsedSchemaCount 只计数, 每次遇到相同的key就计数, 而不是等到函数return, 这样才能识别递归.
+	parsedSchemaCount map[string]int
 
 	openapi *OpenApi
 }
@@ -591,7 +593,7 @@ type GoAstToSchema struct {
 func (o *OpenApi) anyToSchema(i interface{}) (Schema, error) {
 	switch s := i.(type) {
 	case *GoExprWithPath:
-		return o.goAstToSchema(s, false)
+		return o.goAstToSchema(s)
 	case []interface{}:
 		if len(s) == 0 {
 			return &ArraySchema{
