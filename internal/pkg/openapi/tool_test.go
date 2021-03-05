@@ -89,7 +89,7 @@ c: 1
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			bs, _ := yaml.Marshal(mergeYamlMap(c.A))
+			bs, _ := yaml.Marshal(mergeYamlMapKey(c.A))
 			if string(bs) != c.R {
 				t.Fatalf("Unexpected result on test '%s', expected: %s, got: %s", c.Name, c.R, bs)
 			}

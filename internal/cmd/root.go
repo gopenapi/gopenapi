@@ -9,8 +9,6 @@ import (
 	"os"
 )
 
-//go:generate go run ./gen/main.go ../../gopenapi.conf.js cmd defaultConfig
-
 const version = "0.0.1"
 
 var rootCmd = &cobra.Command{

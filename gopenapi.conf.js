@@ -1,10 +1,11 @@
-// import Go from "go";
+// buildin module: go that can parse definition path to schema.
+import go from 'go';
 
 export default {
   filter: function (key, value) {
     switch (key) {
       case 'x-$path': {
-        value = Go(value)
+        value = go.parse(value)
         let responses = parseResponses(value.meta.response)
         let params = parseParams(value.meta.params)
         let body = parseBody(value.meta.body)
@@ -45,15 +46,39 @@ export default {
         return path
       }
       case 'x-$schema': {
-        value = Go(value)
+        value = go.parse(value)
         return processSchema(value.schema, {omitRef: true})
       }
       case 'x-$tags': {
+        // for x-tagGroups syntax of redoc
+        let tagGroupsMap = {}
+        value.forEach((i) => {
+          if (i.group) {
+            if (tagGroupsMap[i.group]) {
+              tagGroupsMap[i.group].tags.push(i.name)
+            } else {
+              tagGroupsMap[i.group] = {tags: [i.name]}
+            }
+
+            delete (i.group)
+          }
+        })
+
+        let tagGroups = []
+        for (const k in tagGroupsMap) {
+          tagGroups.push({
+            name: k,
+            tags: tagGroupsMap[k].tags
+          })
+        }
         return {
           tags: value,
+          'x-tagGroups': tagGroups
         }
       }
     }
+
+    console.warn('uncased key: ', key)
     return value
   }
 }

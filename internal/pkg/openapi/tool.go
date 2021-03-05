@@ -20,7 +20,7 @@ func mergeYamlItem(a, b yaml.MapItem) yaml.MapItem {
 				Key:   a.Key,
 				Value: nil,
 			}
-			r.Value = mergeYamlMap(rv)
+			r.Value = mergeYamlMapKey(rv)
 
 			return r
 		default:
@@ -43,7 +43,7 @@ func mergeYamlItem(a, b yaml.MapItem) yaml.MapItem {
 }
 
 // 去掉重复key
-func mergeYamlMap(a []yaml.MapItem) []yaml.MapItem {
+func mergeYamlMapKey(a []yaml.MapItem) []yaml.MapItem {
 	keyIndex := map[interface{}]int{}
 	for i, item := range a {
 		keyIndex[item.Key] = i

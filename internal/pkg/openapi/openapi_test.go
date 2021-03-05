@@ -94,7 +94,7 @@ func TestGetGoDocForStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/delivery/http/handler.Boo", false)
+	d, exist, err := openAPi.getGoStruct("github.com/gopenapi/gopenapi/internal/delivery/http/handler.Boo")
 	if err != nil {
 		return
 	}

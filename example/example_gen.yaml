@@ -25,6 +25,13 @@ tags:
   description: Test all features
 - name: Edge
   description: Test things that are prone to bugs
+x-tagGroups:
+- name: GroupA
+  tags:
+  - Regular
+- name: GroupB
+  tags:
+  - Edge
 paths:
   /pet/findByStatus:
     get:

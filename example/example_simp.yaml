@@ -24,8 +24,10 @@ servers:
 x-$tags:
   - name: Regular
     description: Test all features
+    group: GroupA
   - name: Edge
     description: Test things that are prone to bugs
+    group: GroupB
 
 paths:
   /pet/findByStatus:
