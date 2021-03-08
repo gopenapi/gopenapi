@@ -122,23 +122,7 @@ As you can see, Gopenapi provide some extended syntax:
 - x-$schema
 - x-$path
 
-#### x-$path
-
-Its value is the definition path of function or struct.
-
-e.g.
-
-- github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
-- ./internal/delivery/http/handler.PetHandler.FindPetByStatus
-
-#### x-$schema
-
-Its value is the definition path of struct.
-
-e.g.
-
-- github.com/gopenapi/gopenapi/internal/model.Pet
-- ./internal/model.Pet
+For more information, please refer to [here](#Extended-Syntax)
 
 ### Step 2: Write 'meta-comments' in your go source code
 
@@ -208,6 +192,61 @@ Flags:
 
 > Tip: You can review the generated file on http://editor.swagger.io/
 
+## Extended Syntax
+
+#### x-$path
+
+Its value is the definition path of function or struct.
+
+e.g.
+
+- github.com/gopenapi/gopenapi/internal/delivery/http/handler.PetHandler.FindPetByStatus
+- ./internal/delivery/http/handler.PetHandler.FindPetByStatus
+
+#### x-$schema
+
+Its value is the definition path of struct.
+
+e.g.
+
+- github.com/gopenapi/gopenapi/internal/model.Pet
+- ./internal/model.Pet
+
+#### x-$tags
+
+Same as tag syntax, except that the group field is added to generate 'x-tagGroups'
+for [redoc](https://github.com/Redocly/redoc).
+
+input
+
+```yaml
+
+x-$tags:
+  - name: Regular
+    description: Test all features
+    group: GroupA
+  - name: Edge
+    description: Test things that are prone to bugs
+    group: GroupB
+```
+
+output
+
+```yaml
+tags:
+  - name: Regular
+    description: Test all features
+  - name: Edge
+    description: Test things that are prone to bugs
+x-tagGroups:
+  - name: GroupA
+    tags:
+      - Regular
+  - name: GroupB
+    tags:
+      - Edge
+```
+
 ## Advanced
 
 So far you already know how to use Gopenapi, if you want more customization, please read on.
@@ -217,9 +256,18 @@ So far you already know how to use Gopenapi, if you want more customization, ple
 Gopenapi will generate `gopenapi.conf.js` file in the root directory of the project after running if this file does not
 exist.
 
-This script is designed to allow you to customize the convenient syntax according to your preferences.
+You can make more custom syntax in this script (In addition to cross-language syntax, such as the functions provided by
+x-$path, it is built in Gopenapi. nevertheless, you can still customize the format of 'meta-comment').
 
-The following syntax are supported by current script:
+For example, the x-$path syntax currently supports multiple formats of 'meta-comment':
+
+in yaml
+
+```yaml
+x-$path: ./internal/delivery/http/handler.PetHandler.FindPetByStatus
+```
+
+in go code
 
 ```
 // add 'required' field
@@ -228,6 +276,7 @@ The following syntax are supported by current script:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: model.Pet
 
+or
 
 // add 'description' field
 // 
@@ -235,6 +284,7 @@ The following syntax are supported by current script:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {schema: model.Pet, desc: 'success!'}
 
+or
 
 // add more responses
 // 
@@ -242,6 +292,7 @@ The following syntax are supported by current script:
 //   params: {schema: model.FindPetByStatusParams, required: [status]}
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
 
+or
 
 // add 'tag' field
 // 
@@ -250,10 +301,6 @@ The following syntax are supported by current script:
 //   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
 //   tags: [pet]
 ```
-
-You can write any data in 'meta-comments' and then process it in `gopenapi.conf.js`.
-
-Because of it, Gopenapi becomes flexible.
 
 ### How to write `gopenapi.conf.js`?
 
@@ -276,7 +323,7 @@ Comments in go:
 //   tags: [pet]
 ```
 
-It will be processed into the following data, and you can use it in `gopenapi.conf.js`:
+It will be processed into the following data by function `go.parse()`:
 
 ```json
 {
