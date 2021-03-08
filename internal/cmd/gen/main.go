@@ -20,6 +20,7 @@ func main() {
 	}
 
 	bs = bytes.ReplaceAll(bs, []byte(`"`), []byte(`\"`))
+	bs = bytes.ReplaceAll(bs, []byte("\r"), []byte(``))
 	bs = bytes.ReplaceAll(bs, []byte("\n"), []byte(`\n`))
 
 	ioutil.WriteFile(dest, []byte(fmt.Sprintf("package %s\n\nconst %s = \"%s\"\n\n", pkgName, varName, bs)), os.ModePerm)
