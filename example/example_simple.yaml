@@ -24,6 +24,7 @@ servers:
 x-$tags:
   - name: Regular
     description: Test all features
+    # Test for x-tagGroup feature of redoc
     group: GroupA
   - name: Edge
     description: Test things that are prone to bugs
