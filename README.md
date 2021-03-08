@@ -1,7 +1,6 @@
 # Gopenapi
 
-Gopenapi helps you to get rid of the cumbersome definition when writing openapi spec, and keep it as flexible as the
-native yaml syntax
+Gopenapi use javascript to extend and simplify openapi sepc.
 
 ## Goals
 

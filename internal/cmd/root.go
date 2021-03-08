@@ -9,12 +9,12 @@ import (
 	"os"
 )
 
-const version = "0.0.1"
+const version = "0.0.2"
 
 var rootCmd = &cobra.Command{
 	Use:     "gopenapi",
 	Short:   "gopenapi",
-	Long:    `Gopenapi helps you to get rid of the cumbersome definition when writing openapi spec`,
+	Long:    `Gopenapi use javascript to extend and simplify openapi sepc`,
 	Version: version,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		confPath := cmd.Flag("config").Value.String()
