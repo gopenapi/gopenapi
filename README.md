@@ -1,10 +1,8 @@
 # Gopenapi
 
-<img align="left" height="100" src="./logo.png"/>
+<img height="100" src="./logo.png"/>
 
 Gopenapi use javascript to extend and simplify openapi sepc.
-
-[TOC]
 
 ## Goals
 
