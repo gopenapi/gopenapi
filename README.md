@@ -34,8 +34,7 @@
 If you meet the following situation, maybe you need it
 
 - Not using openapi
-- Use "hand" to write openapi
-- Use other tools to write openapi
+- Write openapi.yaml by yourself
 
 Don't recommend you who are using go-swagger to use it, unless you want to write `openapi.yaml` again.
 
