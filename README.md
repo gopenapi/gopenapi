@@ -1,10 +1,8 @@
-<p align="center">
-  <img alt="Gopenapi logo" src="./logo.png" height="150" />
-  <h3 align="center">Gopenapi</h3>
-  <p align="center">Gopenapi use javascript to extend and simplify openapi sepc.</p>
-</p>
+<img align="right" width="150px" src="./logo.png">
 
----
+# Gopenapi
+Gopenapi use javascript to extend and simplify openapi sepc.
+
 
 ## Goals
 
