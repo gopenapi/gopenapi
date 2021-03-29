@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
+	"path"
 )
 
 const version = "0.0.2"
@@ -48,7 +49,12 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		outputYaml, err := o.CompleteYaml(string(inputBs))
+
+		format := openapi.Yaml
+		if path.Ext(output) == ".json" {
+			format = openapi.Json
+		}
+		outputYaml, err := o.CompleteYaml(string(inputBs), format)
 		if err != nil {
 			return err
 		}

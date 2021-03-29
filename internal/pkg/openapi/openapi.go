@@ -562,8 +562,13 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 	return r
 }
 
+type OutPutFormat int
+
+const Yaml OutPutFormat = 1
+const Json OutPutFormat = 1
+
 // 完成openapi, 入口
-func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
+func (o *OpenApi) CompleteYaml(inYaml string, typ OutPutFormat) (dest string, err error) {
 	// 读取openapi
 	var kv []yaml.MapItem
 
@@ -582,12 +587,24 @@ func (o *OpenApi) CompleteYaml(inYaml string) (dest string, err error) {
 		return
 	}
 
-	out, err := yaml.Marshal(newKv)
-	if err != nil {
-		return
+	switch typ {
+	case Json:
+		out, err := json.Marshal(yamlItemToJsonItem(newKv))
+		if err != nil {
+			return
+		}
+
+		dest = string(out)
+	default:
+
+		out, err := yaml.Marshal(newKv)
+		if err != nil {
+			return
+		}
+
+		dest = string(out)
 	}
 
-	dest = string(out)
 	return
 }
 
