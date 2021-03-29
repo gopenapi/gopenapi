@@ -1,8 +1,8 @@
+<img align="right" width="150px" src="./logo.png">
+
 # Gopenapi
-
-<img height="100" src="./logo.png"/>
-
 Gopenapi use javascript to extend and simplify openapi sepc.
+
 
 ## Goals
 
@@ -32,8 +32,7 @@ Gopenapi use javascript to extend and simplify openapi sepc.
 If you meet the following situation, maybe you need it
 
 - Not using openapi
-- Use "hand" to write openapi
-- Use other tools to write openapi
+- Write openapi.yaml by yourself
 
 Don't recommend you who are using go-swagger to use it, unless you want to write `openapi.yaml` again.
 
@@ -41,9 +40,7 @@ Don't recommend you who are using go-swagger to use it, unless you want to write
 
 ### Precondition
 
-- Make sure your project is written in Golang
-- Make sure 'go module' is enabled
-- Make sure the 'go.mod' file is in the project root directory
+- Make sure your project is written in Golang and 'go module' is enabled
 
 ### Step 0: Install Gopenapi
 
@@ -124,7 +121,7 @@ As you can see, Gopenapi provide some extended syntax:
 - x-$schema
 - x-$path
 
-For more information, please refer to [here](#Extended-Syntax)
+For more information about 'extended syntax', please refer to [here](#Extended-Syntax)
 
 ### Step 2: Write 'meta-comments' in your go source code
 
@@ -171,11 +168,12 @@ or
 
 ### Step 3: Run Gopenapi to fill your yaml file
 
+Run the following command in the project root directory.
 ```bash
 gopenapi -i example/openapi.src.yaml -o example/openapi.gen.yaml
 ```
 
-You can type 'gopenapi -h' to get more helps.
+Tip: Type 'gopenapi -h' for more helps.
 
 ```bash
 gopenapi -h
@@ -198,6 +196,8 @@ Flags:
 
 #### x-$path
 
+The x-$path instruction generates data that conforms to `openapi-path` from Go comment.
+
 Its value is the definition path of function or struct.
 
 e.g.
@@ -206,6 +206,8 @@ e.g.
 - ./internal/delivery/http/handler.PetHandler.FindPetByStatus
 
 #### x-$schema
+
+The x-$schema instruction generates data that conforms to `openapi-schema` from Go struct.
 
 Its value is the definition path of struct.
 
@@ -216,7 +218,7 @@ e.g.
 
 #### x-$tags
 
-Same as tag syntax, except that the group field is added to generate 'x-tagGroups'
+Same as `tags`, except that the group field is added to generate 'x-tagGroups'
 for [redoc](https://github.com/Redocly/redoc).
 
 input
@@ -312,136 +314,14 @@ same requirements.
 If you really want to modify it, don’t worry about breaking it, just delete it and run gopenapi again will regenerate
 it.
 
-The next example shows how to write `gopenapi.conf.js`:
-
-Comments in go:
-
-```
-// add 'tag' field
-// 
-// $:
-//   params: {schema: model.FindPetByStatusParams, required: [status]}
-//   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
-//   tags: [pet]
-```
-
-It will be processed into the following data by function `go.parse()`:
-
-```json
-{
-  "doc": "add 'tag' field",
-  "summary": "add 'tag' field",
-  "description": "",
-  "meta": {
-    "params": {
-      "schema": {
-        "meta": {
-          "in": "query"
-        },
-        "schema": {
-          "type": "object",
-          "properties": {
-            "Status": {
-              "schema": {
-                "type": "array",
-                "description": "Status values that need to be considered for filter",
-                "items": {
-                  "type": "string",
-                  "description": "Status values that need to be considered for filter",
-                  "default": "available",
-                  "enum": [
-                    "available",
-                    "pending",
-                    "sold"
-                  ],
-                  "x-schema": true
-                },
-                "x-schema": true
-              },
-              "meta": {
-                "required": true
-              },
-              "tag": {
-                "form": "status"
-              }
-            }
-          },
-          "x-schema": true
-        },
-        "x-gostruct": true
-      },
-      "required": [
-        "status"
-      ]
-    },
-    "response": {
-      "200": {
-        "schema": {
-          "doc": "Pet is pet model",
-          "summary": "Pet is pet model",
-          "description": "",
-          "meta": {
-            "testMeta": "a"
-          },
-          "schema": {
-            "type": "object",
-            "description": "Pet is pet model",
-            "properties": {
-              "Id": {
-                "schema": {
-                  "type": "integer",
-                  "description": "Id is Pet ID",
-                  "x-schema": true
-                },
-                "tag": {
-                  "json": "id"
-                }
-              },
-              "Status": {
-                "schema": {
-                  "type": "string",
-                  "description": "PetStatus",
-                  "default": "available",
-                  "enum": [
-                    "available",
-                    "pending",
-                    "sold"
-                  ],
-                  "x-schema": true
-                },
-                "tag": {
-                  "json": "status"
-                }
-              }
-            },
-            "x-schema": true
-          },
-          "x-gostruct": true
-        },
-        "desc": "success!"
-      },
-      "401": "#401"
-    },
-    "tags": [
-      "pet"
-    ]
-  },
-  "x-gostruct": true
-}
-```
-
-The schema part is complicated. Fortunately, we don’t care about it, but focus on other fields.
-
 For example, if we want to add a `operationId` field, we can write code like this:
 
 In go comments:
 
 ```diff
-// add 'tag' field
-// 
 // $:
-//   params: {schema: model.FindPetByStatusParams, required: [status]}
-//   response: {200: {schema: model.Pet, desc: 'success!'}, 401: '#401'} 
+//   params: model.FindPetByStatusParams
+//   response: schema([model.Pet]) 
 //   tags: [pet]
 + //   operationId: FindPetByStatus
 ```
@@ -451,15 +331,27 @@ In `gopenapi.conf.js`:
 ```diff
 export default {
   filter: function (key, value) {
-        ...
-        let path = {
-          summary: value.summary,
-          description: value.description,
-        }
-+     if (value.meta.operationId) {
-+       path.operationId = value.meta.operationId
-+     }
-        ...
+    ...
+    let path = {
+      summary: value.summary,
+      description: value.description,
+    }
+     // use 'console.log(JSON.stringify(value))' to print data-struct of value
++    if (value.meta.operationId) {
++      path.operationId = value.meta.operationId
++    }
+    ...
+```
+
+Now the generated openapi will add the `operationId` field
+```diff
+paths:
+  /pet/findByStatus:
+    get:
++      operationId: FindPetByStatus
+      summary: FindPetByStatus test for return array schema
+      description: ""
+      ...
 ```
 
 ## FQA
