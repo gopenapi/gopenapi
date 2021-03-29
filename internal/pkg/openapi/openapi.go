@@ -587,23 +587,22 @@ func (o *OpenApi) CompleteYaml(inYaml string, typ OutPutFormat) (dest string, er
 		return
 	}
 
+	var out []byte
 	switch typ {
 	case Json:
-		out, err := json.Marshal(yamlItemToJsonItem(newKv))
+		out, err = json.Marshal(yamlItemToJsonItem(newKv))
 		if err != nil {
 			return
 		}
 
-		dest = string(out)
 	default:
-
-		out, err := yaml.Marshal(newKv)
+		out, err = yaml.Marshal(newKv)
 		if err != nil {
 			return
 		}
 
-		dest = string(out)
 	}
+	dest = string(out)
 
 	return
 }
