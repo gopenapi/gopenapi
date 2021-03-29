@@ -565,7 +565,7 @@ func encodeTag(tag *ast.BasicLit) map[string]string {
 type OutPutFormat int
 
 const Yaml OutPutFormat = 1
-const Json OutPutFormat = 1
+const Json OutPutFormat = 2
 
 // 完成openapi, 入口
 func (o *OpenApi) CompleteYaml(inYaml string, typ OutPutFormat) (dest string, err error) {
@@ -590,7 +590,7 @@ func (o *OpenApi) CompleteYaml(inYaml string, typ OutPutFormat) (dest string, er
 	var out []byte
 	switch typ {
 	case Json:
-		out, err = json.Marshal(yamlItemToJsonItem(newKv))
+		out, err = json.MarshalIndent(yamlItemToJsonItem(newKv), "", "  ")
 		if err != nil {
 			return
 		}
